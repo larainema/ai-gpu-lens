@@ -19,6 +19,8 @@ Use this section to decide whether the audit window is worth deeper review.
 Action items are intentionally short. They are designed to become a remediation
 backlog, not a full root-cause analysis.
 
+![Action items screenshot](assets/action-items.png)
+
 Typical categories:
 
 - `Right-sizing`: review GPU requests, replica counts, and workload sizing.
@@ -44,6 +46,8 @@ Good follow-up questions:
 ## Over-requested Namespaces And Workloads
 
 The report compares requested GPU hours with utilized GPU-hour equivalents.
+
+![Waste ranking screenshot](assets/waste-rankings.png)
 
 Example:
 

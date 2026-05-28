@@ -27,6 +27,8 @@ Open `reports/sample.html` in a browser. The report includes:
 - per-GPU utilization and memory details
 - telemetry gaps
 
+![Sample report overview](assets/report-overview.png)
+
 ## 2. Use The Released Container
 
 ```bash

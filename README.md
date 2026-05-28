@@ -21,6 +21,8 @@ The first target is a practical consulting workflow:
 7 day GPU cost audit -> report -> concrete remediation backlog
 ```
 
+![ai-gpu-lens sample report overview](docs/assets/report-overview.png)
+
 ## Start Here
 
 - [Quickstart / 快速开始](docs/quickstart.md)
