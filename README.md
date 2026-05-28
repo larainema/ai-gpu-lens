@@ -3,11 +3,11 @@
 `ai-gpu-lens` is a small CLI for finding waste in Kubernetes GPU fleets.
 It reads DCGM exporter metrics from Prometheus and produces an HTML/JSON report
 covering GPU utilization, memory usage, idle GPU hours, namespace attribution,
-and quick recommendations.
+executive summaries, and concrete action items.
 
 `ai-gpu-lens` 是一个面向 Kubernetes GPU 集群的小型审计 CLI。它从
 Prometheus/DCGM 读取指标，生成中英文 HTML/JSON 报告，帮助定位 GPU
-利用率低、显存使用异常、空闲 GPU 小时和 namespace 成本归因问题。
+利用率低、显存使用异常、空闲 GPU 小时、namespace 成本归因和可执行整改项。
 
 The first target is a practical consulting workflow:
 
@@ -88,6 +88,8 @@ By default the tool queries these DCGM metrics:
 - `DCGM_FI_DEV_GPU_UTIL`
 - `DCGM_FI_DEV_FB_USED`
 - `DCGM_FI_DEV_FB_TOTAL`
+- fallback when total memory is missing:
+  `DCGM_FI_DEV_FB_USED + ignoring(__name__) DCGM_FI_DEV_FB_FREE`
 - `kube_pod_container_resource_requests`
 
 You can override the metric names if your deployment uses recording rules:
@@ -98,10 +100,13 @@ You can override the metric names if your deployment uses recording rules:
   --gpu-util-query 'avg by (Hostname, UUID, namespace, pod) (DCGM_FI_DEV_GPU_UTIL)' \
   --memory-used-query 'DCGM_FI_DEV_FB_USED' \
   --memory-total-query 'DCGM_FI_DEV_FB_TOTAL' \
+  --memory-total-fallback-query 'DCGM_FI_DEV_FB_USED + ignoring(__name__) DCGM_FI_DEV_FB_FREE' \
   --kube-gpu-request-query 'sum by (namespace, pod) (kube_pod_container_resource_requests{resource=~"nvidia_com_gpu|nvidia.com/gpu"} * on(namespace, pod) group_left() max by (namespace, pod) (kube_pod_status_phase{phase=~"Pending|Running"} == 1))'
 ```
 
 If kube-state-metrics is not installed, use `--skip-kube-gpu-requests`.
+If your exporter exposes `DCGM_FI_DEV_FB_TOTAL` directly and you do not want the
+fallback query, use `--skip-memory-total-fallback`.
 
 ## Audit through Grafana
 
@@ -199,6 +204,7 @@ tokens to a public repository.
 - Per-model GPU price matching
 - kube-state-metrics requested GPU hours
 - Namespace-level utilized GPU-hour equivalents when Kubernetes labels exist
+- Executive summary and prioritized action items for a remediation backlog
 - Physical GPU de-duplication when DCGM exporter emits repeated container
   series for the same GPU
 - Gaps in telemetry that make attribution weaker
@@ -213,6 +219,7 @@ tokens to a public repository.
 - 不同 GPU 型号的价格匹配
 - kube-state-metrics 中的 GPU 申请小时数
 - namespace 维度的 GPU 小时归因
+- 执行摘要和按优先级排序的行动清单，方便形成整改 backlog
 - 针对同一物理 GPU 重复 DCGM 序列的去重
 - 影响成本归因准确性的遥测缺口
 - 下一轮审计可执行建议

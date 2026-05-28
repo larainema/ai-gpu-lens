@@ -6,6 +6,7 @@ from typing import Callable
 
 from .i18n import DEFAULT_LANGUAGE, normalize_language, t
 from .model import (
+    ActionItem,
     AuditReport,
     GpuModelSummary,
     GpuSummary,
@@ -197,6 +198,13 @@ def analyze_bundle(
         telemetry_gaps=telemetry_gaps,
         language=language,
     )
+    action_items = build_action_items(
+        gpus,
+        namespaces,
+        workload_requests,
+        telemetry_gaps,
+        language=language,
+    )
 
     return AuditReport(
         generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -215,6 +223,7 @@ def analyze_bundle(
         gpu_models=gpu_models,
         namespaces=namespaces,
         workload_requests=workload_requests,
+        action_items=action_items,
         recommendations=recommendations,
         telemetry_gaps=sorted(telemetry_gaps),
     )
@@ -267,6 +276,129 @@ def build_recommendations(
     if not recommendations:
         recommendations.append(t(language, "rec_no_major_waste"))
     return recommendations
+
+
+def build_action_items(
+    gpus: list[GpuSummary],
+    namespaces: list[NamespaceSummary],
+    workload_requests: list[WorkloadRequestSummary],
+    telemetry_gaps: set[str],
+    *,
+    language: str = DEFAULT_LANGUAGE,
+) -> list[ActionItem]:
+    action_items: list[ActionItem] = []
+    workload_attribution_ok = not any(
+        gpu.source_series_count > 1
+        or gpu.namespace in {UNKNOWN, "mixed"}
+        or gpu.pod in {UNKNOWN, "mixed"}
+        for gpu in gpus
+    )
+
+    over_requested_workloads = [
+        item for item in workload_requests if item.over_requested_gpu_hours > 0
+    ]
+    over_requested_workloads.sort(
+        key=lambda item: (
+            item.estimated_over_request_cost,
+            item.over_requested_gpu_hours,
+        ),
+        reverse=True,
+    )
+    if workload_attribution_ok:
+        for item in over_requested_workloads[:3]:
+            action_items.append(
+                ActionItem(
+                    priority=t(language, "priority_high"),
+                    category=t(language, "category_rightsizing"),
+                    target=f"{item.namespace}/{item.pod}",
+                    action=t(
+                        language,
+                        "action_rightsize_workload",
+                        requested=_fmt_hours(item.requested_gpu_hours),
+                        utilized=_fmt_hours(item.utilized_gpu_hour_equivalent),
+                        over=_fmt_hours(item.over_requested_gpu_hours),
+                    ),
+                    estimated_window_savings=item.estimated_over_request_cost,
+                )
+            )
+
+    if not action_items:
+        over_requested_namespaces = [
+            item for item in namespaces if item.over_requested_gpu_hours > 0
+        ]
+        over_requested_namespaces.sort(
+            key=lambda item: (
+                item.estimated_over_request_cost,
+                item.over_requested_gpu_hours,
+            ),
+            reverse=True,
+        )
+        for item in over_requested_namespaces[:2]:
+            action_items.append(
+                ActionItem(
+                    priority=t(language, "priority_high"),
+                    category=t(language, "category_rightsizing"),
+                    target=item.namespace,
+                    action=t(
+                        language,
+                        "action_rightsize_namespace",
+                        requested=_fmt_hours(item.requested_gpu_hours),
+                        utilized=_fmt_hours(item.utilized_gpu_hour_equivalent),
+                        over=_fmt_hours(item.over_requested_gpu_hours),
+                    ),
+                    estimated_window_savings=item.estimated_over_request_cost,
+                )
+            )
+
+    idle_gpus = [gpu for gpu in gpus if gpu.idle_hours > 0]
+    idle_gpus.sort(
+        key=lambda item: (item.estimated_idle_cost, item.idle_hours),
+        reverse=True,
+    )
+    remaining_slots = max(0, 5 - len(action_items))
+    for gpu in idle_gpus[: min(2, remaining_slots)]:
+        action_items.append(
+            ActionItem(
+                priority=t(language, "priority_medium"),
+                category=t(language, "category_idle_capacity"),
+                target=f"{gpu.node} GPU {gpu.index}",
+                action=t(
+                    language,
+                    "action_review_idle_gpu",
+                    idle_hours=_fmt_hours(gpu.idle_hours),
+                    avg_util=_fmt_pct(gpu.avg_utilization),
+                    namespace=gpu.namespace,
+                    pod=gpu.pod,
+                ),
+                estimated_window_savings=gpu.estimated_idle_cost,
+            )
+        )
+
+    remaining_slots = max(0, 5 - len(action_items))
+    if telemetry_gaps and remaining_slots:
+        action_items.append(
+            ActionItem(
+                priority=t(language, "priority_medium"),
+                category=t(language, "category_telemetry"),
+                target=t(language, "telemetry_gaps"),
+                action=t(
+                    language,
+                    "action_fix_telemetry",
+                    gap=sorted(telemetry_gaps)[0],
+                ),
+            )
+        )
+
+    if not action_items:
+        action_items.append(
+            ActionItem(
+                priority=t(language, "priority_low"),
+                category=t(language, "category_validation"),
+                target=t(language, "gpus"),
+                action=t(language, "action_validate_longer_window"),
+            )
+        )
+    return action_items[:5]
 
 
 def _latest_series_by_gpu(series_list: tuple[Series, ...]) -> dict[str, Series]:
@@ -341,6 +473,14 @@ def step_to_hours(step: str) -> float:
     if suffix == "d":
         return amount * 24.0
     return amount / 3600.0
+
+
+def _fmt_hours(value: float) -> str:
+    return f"{value:,.2f}"
+
+
+def _fmt_pct(value: float) -> str:
+    return f"{value:.1f}%"
 
 
 def build_gpu_model_summaries(gpus: list[GpuSummary]) -> list[GpuModelSummary]:

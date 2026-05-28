@@ -111,6 +111,15 @@ class GpuModelSummary:
 
 
 @dataclass
+class ActionItem:
+    priority: str
+    category: str
+    target: str
+    action: str
+    estimated_window_savings: float = 0.0
+
+
+@dataclass
 class AuditReport:
     generated_at: str
     language: str
@@ -128,5 +137,6 @@ class AuditReport:
     gpu_models: list[GpuModelSummary] = field(default_factory=list)
     namespaces: list[NamespaceSummary] = field(default_factory=list)
     workload_requests: list[WorkloadRequestSummary] = field(default_factory=list)
+    action_items: list[ActionItem] = field(default_factory=list)
     recommendations: list[str] = field(default_factory=list)
     telemetry_gaps: list[str] = field(default_factory=list)

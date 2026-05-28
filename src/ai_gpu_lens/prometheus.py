@@ -15,6 +15,9 @@ from .model import MetricBundle, Series
 DEFAULT_GPU_UTIL_QUERY = "DCGM_FI_DEV_GPU_UTIL"
 DEFAULT_MEMORY_USED_QUERY = "DCGM_FI_DEV_FB_USED"
 DEFAULT_MEMORY_TOTAL_QUERY = "DCGM_FI_DEV_FB_TOTAL"
+DEFAULT_MEMORY_TOTAL_FALLBACK_QUERY = (
+    "DCGM_FI_DEV_FB_USED + ignoring(__name__) DCGM_FI_DEV_FB_FREE"
+)
 DEFAULT_KUBE_GPU_REQUEST_QUERY = (
     'sum by (namespace, pod) '
     '('
@@ -141,6 +144,7 @@ def collect_bundle(
     gpu_util_query: str = DEFAULT_GPU_UTIL_QUERY,
     memory_used_query: str = DEFAULT_MEMORY_USED_QUERY,
     memory_total_query: str = DEFAULT_MEMORY_TOTAL_QUERY,
+    memory_total_fallback_query: str | None = DEFAULT_MEMORY_TOTAL_FALLBACK_QUERY,
     kube_gpu_request_query: str | None = DEFAULT_KUBE_GPU_REQUEST_QUERY,
     timeout: float = 20.0,
     basic_auth: tuple[str, str] | None = None,
@@ -160,6 +164,18 @@ def collect_bundle(
             basic_auth=basic_auth,
             bearer_token=bearer_token,
         )
+
+    memory_total = query_range_with_fallback(
+        prometheus_url,
+        memory_total_query,
+        memory_total_fallback_query,
+        start,
+        end,
+        step,
+        timeout=timeout,
+        basic_auth=basic_auth,
+        bearer_token=bearer_token,
+    )
 
     return MetricBundle(
         gpu_utilization=query_range(
@@ -182,18 +198,66 @@ def collect_bundle(
             basic_auth=basic_auth,
             bearer_token=bearer_token,
         ),
-        memory_total=query_range(
+        memory_total=memory_total,
+        gpu_requests=gpu_requests,
+    )
+
+
+def query_range_with_fallback(
+    prometheus_url: str,
+    query: str,
+    fallback_query: str | None,
+    start: datetime,
+    end: datetime,
+    step: str,
+    timeout: float = 20.0,
+    basic_auth: tuple[str, str] | None = None,
+    bearer_token: str | None = None,
+) -> tuple[Series, ...]:
+    try:
+        primary = query_range(
             prometheus_url,
-            memory_total_query,
+            query,
             start,
             end,
             step,
             timeout=timeout,
             basic_auth=basic_auth,
             bearer_token=bearer_token,
-        ),
-        gpu_requests=gpu_requests,
-    )
+        )
+    except PrometheusError as exc:
+        if not fallback_query:
+            raise
+        try:
+            return query_range(
+                prometheus_url,
+                fallback_query,
+                start,
+                end,
+                step,
+                timeout=timeout,
+                basic_auth=basic_auth,
+                bearer_token=bearer_token,
+            )
+        except PrometheusError:
+            raise exc
+
+    if primary or not fallback_query:
+        return primary
+    try:
+        fallback = query_range(
+            prometheus_url,
+            fallback_query,
+            start,
+            end,
+            step,
+            timeout=timeout,
+            basic_auth=basic_auth,
+            bearer_token=bearer_token,
+        )
+    except PrometheusError:
+        return primary
+    return fallback or primary
 
 
 def load_bundle(path: Path) -> MetricBundle:

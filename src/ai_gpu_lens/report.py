@@ -46,6 +46,21 @@ def render_html(report: AuditReport) -> str:
         """
         for label, value in cards
     )
+    executive_summary = "\n".join(
+        f"<li>{escape(item)}</li>" for item in executive_summary_lines(report)
+    )
+    action_rows = "\n".join(
+        f"""
+        <tr>
+          <td>{escape(item.priority)}</td>
+          <td>{escape(item.category)}</td>
+          <td>{escape(item.target)}</td>
+          <td class="action-cell">{escape(item.action)}</td>
+          <td>{money(item.estimated_window_savings)}</td>
+        </tr>
+        """
+        for item in report.action_items
+    )
 
     gpu_rows = "\n".join(
         f"""
@@ -100,7 +115,7 @@ def render_html(report: AuditReport) -> str:
     if not workload_request_rows:
         workload_request_rows = f"""
         <tr>
-          <td colspan="7">{escape(t(language, "not_available"))}</td>
+          <td colspan="8">{escape(t(language, "not_available"))}</td>
         </tr>
         """
     model_rows = "\n".join(
@@ -296,6 +311,7 @@ def render_html(report: AuditReport) -> str:
       border-radius: 8px;
     }}
     .accent {{ color: var(--accent); }}
+    .action-cell {{ min-width: 320px; white-space: normal; }}
     @media (max-width: 760px) {{
       main {{ padding: 24px 12px 36px; }}
       header {{ display: block; }}
@@ -321,6 +337,27 @@ def render_html(report: AuditReport) -> str:
     <section class="grid">
       {card_html}
     </section>
+
+    <h2>{escape(t(language, "executive_summary"))}</h2>
+    <section class="panel">
+      <ul>{executive_summary}</ul>
+    </section>
+
+    <h2>{escape(t(language, "action_items"))}</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>{escape(t(language, "priority"))}</th>
+            <th>{escape(t(language, "category"))}</th>
+            <th>{escape(t(language, "target"))}</th>
+            <th>{escape(t(language, "action"))}</th>
+            <th>{escape(t(language, "estimated_savings"))}</th>
+          </tr>
+        </thead>
+        <tbody>{action_rows}</tbody>
+      </table>
+    </div>
 
     <h2>{escape(t(language, "recommendations"))}</h2>
     <section class="panel">
@@ -484,9 +521,39 @@ def render_markdown(report: AuditReport) -> str:
         f"- {t(language, 'requested_gpu_hours')}: {num(report.total_requested_gpu_hours)}",
         f"- {t(language, 'requested_cost')}: {money(report.estimated_request_cost)}",
         "",
-        f"## {t(language, 'recommendations')}",
+        f"## {t(language, 'executive_summary')}",
         "",
     ]
+    lines.extend(f"- {item}" for item in executive_summary_lines(report))
+    lines.extend(
+        [
+            "",
+            f"## {t(language, 'action_items')}",
+            "",
+            markdown_table(
+                [
+                    t(language, "priority"),
+                    t(language, "category"),
+                    t(language, "target"),
+                    t(language, "action"),
+                    t(language, "estimated_savings"),
+                ],
+                [
+                    [
+                        item.priority,
+                        item.category,
+                        item.target,
+                        item.action,
+                        money(item.estimated_window_savings),
+                    ]
+                    for item in report.action_items
+                ],
+            ),
+            "",
+            f"## {t(language, 'recommendations')}",
+            "",
+        ]
+    )
     lines.extend(f"- {item}" for item in report.recommendations)
     lines.extend(
         [
@@ -702,6 +769,36 @@ def render_markdown(report: AuditReport) -> str:
     lines.extend(f"- {item}" for item in gaps)
     lines.append("")
     return "\n".join(lines)
+
+
+def executive_summary_lines(report: AuditReport) -> list[str]:
+    language = report.language
+    over_requested_hours = sum(
+        item.over_requested_gpu_hours for item in report.workload_requests
+    )
+    if not over_requested_hours:
+        over_requested_hours = sum(
+            item.over_requested_gpu_hours for item in report.namespaces
+        )
+    return [
+        t(
+            language,
+            "summary_utilization",
+            count=report.total_gpus,
+            util=pct(report.fleet_avg_utilization),
+            hours=num(report.window_hours),
+        ),
+        t(
+            language,
+            "summary_idle_cost",
+            cost=money(report.estimated_idle_cost),
+        ),
+        t(
+            language,
+            "summary_over_request",
+            hours=num(over_requested_hours),
+        ),
+    ]
 
 
 def markdown_table(headers: list[str], rows: list[list[str]]) -> str:

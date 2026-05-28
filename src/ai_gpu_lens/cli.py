@@ -22,6 +22,7 @@ from .doctor import render_doctor_text, run_doctor
 from .prometheus import (
     DEFAULT_GPU_UTIL_QUERY,
     DEFAULT_KUBE_GPU_REQUEST_QUERY,
+    DEFAULT_MEMORY_TOTAL_FALLBACK_QUERY,
     DEFAULT_MEMORY_TOTAL_QUERY,
     DEFAULT_MEMORY_USED_QUERY,
     PrometheusError,
@@ -117,6 +118,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--memory-total-query",
         default=None,
         help="PromQL for framebuffer memory total. Default: DCGM_FI_DEV_FB_TOTAL.",
+    )
+    audit.add_argument(
+        "--memory-total-fallback-query",
+        default=None,
+        help="Fallback PromQL for framebuffer memory total.",
+    )
+    audit.add_argument(
+        "--skip-memory-total-fallback",
+        action="store_true",
+        help="Do not try the framebuffer memory total fallback query.",
     )
     audit.add_argument(
         "--kube-gpu-request-query",
@@ -229,6 +240,7 @@ def run_audit(args: argparse.Namespace) -> int:
                 gpu_util_query=options["gpu_util_query"],
                 memory_used_query=options["memory_used_query"],
                 memory_total_query=options["memory_total_query"],
+                memory_total_fallback_query=options["memory_total_fallback_query"],
                 kube_gpu_request_query=options["kube_gpu_request_query"],
                 timeout=options["timeout"],
                 basic_auth=options["basic_auth"],
@@ -297,6 +309,20 @@ def resolve_options(args: argparse.Namespace, config: dict[str, object]) -> dict
     )
     if skip_requests:
         kube_gpu_request_query = None
+    memory_total_fallback_query = (
+        args.memory_total_fallback_query
+        if args.memory_total_fallback_query is not None
+        else get_config_value(
+            config,
+            "memory_total_fallback_query",
+            DEFAULT_MEMORY_TOTAL_FALLBACK_QUERY,
+        )
+    )
+    if bool(
+        args.skip_memory_total_fallback
+        or get_config_value(config, "skip_memory_total_fallback", False)
+    ):
+        memory_total_fallback_query = None
 
     return {
         "from_file": from_file,
@@ -338,6 +364,7 @@ def resolve_options(args: argparse.Namespace, config: dict[str, object]) -> dict
             args.memory_total_query
             or get_config_value(config, "memory_total_query", DEFAULT_MEMORY_TOTAL_QUERY)
         ),
+        "memory_total_fallback_query": memory_total_fallback_query,
         "kube_gpu_request_query": kube_gpu_request_query,
         "language": str(args.language or get_config_value(config, "language", "en")),
         "timeout": float(args.timeout or get_config_value(config, "timeout", 20.0)),

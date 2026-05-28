@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from .prometheus import (
     DEFAULT_GPU_UTIL_QUERY,
     DEFAULT_KUBE_GPU_REQUEST_QUERY,
+    DEFAULT_MEMORY_TOTAL_FALLBACK_QUERY,
     DEFAULT_MEMORY_TOTAL_QUERY,
     DEFAULT_MEMORY_USED_QUERY,
     PrometheusError,
@@ -89,6 +90,18 @@ def run_doctor(
     checks.append(
         count_check(
             prometheus_url,
+            "dcgm_memory_total_fallback",
+            f"count({DEFAULT_MEMORY_TOTAL_FALLBACK_QUERY})",
+            "DCGM framebuffer memory total fallback series",
+            ok_when_zero=True,
+            timeout=timeout,
+            basic_auth=basic_auth,
+            bearer_token=bearer_token,
+        )
+    )
+    checks.append(
+        count_check(
+            prometheus_url,
             "kube_gpu_requests",
             f"count({DEFAULT_KUBE_GPU_REQUEST_QUERY})",
             "active kube-state-metrics GPU request series",
@@ -124,9 +137,7 @@ def run_doctor(
             "gpu_util_query": DEFAULT_GPU_UTIL_QUERY,
             "memory_used_query": DEFAULT_MEMORY_USED_QUERY,
             "memory_total_query": DEFAULT_MEMORY_TOTAL_QUERY,
-            "memory_total_fallback_query": (
-                "DCGM_FI_DEV_FB_USED + ignoring(__name__) DCGM_FI_DEV_FB_FREE"
-            ),
+            "memory_total_fallback_query": DEFAULT_MEMORY_TOTAL_FALLBACK_QUERY,
             "kube_gpu_request_query": DEFAULT_KUBE_GPU_REQUEST_QUERY,
         },
     )

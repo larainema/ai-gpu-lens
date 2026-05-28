@@ -79,6 +79,8 @@ class AnalyzeBundleTest(unittest.TestCase):
             report.namespaces[0].utilized_gpu_hour_equivalent,
             0.3,
         )
+        self.assertEqual(report.action_items[0].target, "notebooks/jupyter-0")
+        self.assertAlmostEqual(report.action_items[0].estimated_window_savings, 2.0)
         self.assertIn(
             "Memory used metric is missing for one or more GPUs.",
             report.telemetry_gaps,

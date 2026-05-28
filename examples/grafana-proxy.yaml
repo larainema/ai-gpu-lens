@@ -20,6 +20,10 @@ gpu_prices:
   L40S: 1.35
   4090: 0.65
 
+# Some DCGM deployments expose used/free memory but not total memory.
+# ai-gpu-lens will use this fallback automatically unless disabled.
+# memory_total_fallback_query: DCGM_FI_DEV_FB_USED + ignoring(__name__) DCGM_FI_DEV_FB_FREE
+
 # Prefer a Viewer/service-account token for automation:
 # bearer_token_env: GRAFANA_TOKEN
 
