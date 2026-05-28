@@ -80,7 +80,9 @@ class NamespaceSummary:
     namespace: str
     utilized_gpu_hour_equivalent: float = 0.0
     requested_gpu_hours: float = 0.0
+    over_requested_gpu_hours: float = 0.0
     estimated_request_cost: float = 0.0
+    estimated_over_request_cost: float = 0.0
     series_count: int = 0
     avg_utilization: float = 0.0
 
@@ -92,7 +94,20 @@ class WorkloadRequestSummary:
     avg_requested_gpus: float
     requested_gpu_hours: float
     estimated_request_cost: float
+    utilized_gpu_hour_equivalent: float = 0.0
+    over_requested_gpu_hours: float = 0.0
+    estimated_over_request_cost: float = 0.0
     samples: int = 0
+
+
+@dataclass
+class GpuModelSummary:
+    model: str
+    count: int
+    avg_utilization: float
+    total_idle_gpu_hours: float
+    estimated_idle_cost: float
+    price_per_gpu_hour: float
 
 
 @dataclass
@@ -110,6 +125,7 @@ class AuditReport:
     estimated_idle_cost: float
     estimated_request_cost: float
     gpus: list[GpuSummary] = field(default_factory=list)
+    gpu_models: list[GpuModelSummary] = field(default_factory=list)
     namespaces: list[NamespaceSummary] = field(default_factory=list)
     workload_requests: list[WorkloadRequestSummary] = field(default_factory=list)
     recommendations: list[str] = field(default_factory=list)

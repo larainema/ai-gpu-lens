@@ -124,6 +124,41 @@ or service account token where possible.
 For automation, put the password in an environment variable and use
 `--basic-auth-password-env` instead of prompting.
 
+Bearer tokens are also supported:
+
+```bash
+export GRAFANA_TOKEN=...
+./bin/ai-gpu-lens audit \
+  --prometheus-url https://grafana.example.com/api/datasources/proxy/uid/prometheus \
+  --bearer-token-env GRAFANA_TOKEN \
+  --hours 24 \
+  --step 5m \
+  --output reports/grafana-audit.html
+```
+
+## Doctor
+
+Use `doctor` to check whether a Prometheus or Grafana datasource proxy has the
+metrics needed for a useful audit:
+
+```bash
+./bin/ai-gpu-lens doctor \
+  --prometheus-url http://localhost:9090
+```
+
+For Grafana:
+
+```bash
+./bin/ai-gpu-lens doctor \
+  --prometheus-url https://grafana.example.com/api/datasources/proxy/uid/prometheus \
+  --basic-auth-user viewer \
+  --prompt-basic-auth-password
+```
+
+`doctor` checks for DCGM GPU utilization, framebuffer memory metrics,
+kube-state-metrics GPU requests, exported workload labels, GPU model
+distribution, and recommended PromQL defaults.
+
 ## Config file
 
 `ai-gpu-lens` accepts a small YAML/JSON config file. CLI flags override config

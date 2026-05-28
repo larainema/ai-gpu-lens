@@ -131,6 +131,26 @@ class AnalyzeBundleTest(unittest.TestCase):
         )
         self.assertEqual(price_for_model("unknown", {"default": 2.0}, 1.0), 2.0)
 
+    def test_single_sample_gpu_request_uses_step_not_full_window(self) -> None:
+        bundle = MetricBundle(
+            gpu_requests=(
+                Series(
+                    metric={"namespace": "short-job", "pod": "worker-0"},
+                    values=((3600, 8),),
+                ),
+            )
+        )
+
+        report = analyze_bundle(
+            bundle,
+            window_hours=24.0,
+            step="5m",
+            price_per_gpu_hour=2.0,
+        )
+
+        self.assertAlmostEqual(report.total_requested_gpu_hours, 8 * (5 / 60))
+        self.assertAlmostEqual(report.estimated_request_cost, 8 * (5 / 60) * 2)
+
     def test_dcgm_exporter_self_namespace_is_not_workload_namespace(self) -> None:
         bundle = MetricBundle(
             gpu_utilization=(

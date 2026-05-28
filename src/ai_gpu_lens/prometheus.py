@@ -31,6 +31,41 @@ class PrometheusError(RuntimeError):
     pass
 
 
+def query_instant(
+    prometheus_url: str,
+    query: str,
+    timeout: float = 20.0,
+    basic_auth: tuple[str, str] | None = None,
+    bearer_token: str | None = None,
+) -> tuple[Series, ...]:
+    base = prometheus_url.rstrip("/")
+    params = urlencode({"query": query})
+    url = f"{base}/api/v1/query?{params}"
+    payload = _query_json(
+        url,
+        query,
+        timeout=timeout,
+        basic_auth=basic_auth,
+        bearer_token=bearer_token,
+    )
+    data = payload.get("data", {})
+    if data.get("resultType") != "vector":
+        raise PrometheusError(f"Prometheus query did not return an instant vector: {query}")
+    series: list[Series] = []
+    for item in data.get("result", []):
+        metric = {str(k): str(v) for k, v in item.get("metric", {}).items()}
+        raw_value = item.get("value", ())
+        if len(raw_value) != 2:
+            continue
+        try:
+            timestamp = float(raw_value[0])
+            value = float(raw_value[1])
+        except (TypeError, ValueError):
+            continue
+        series.append(Series(metric=metric, values=((timestamp, value),)))
+    return tuple(series)
+
+
 def query_range(
     prometheus_url: str,
     query: str,
@@ -39,6 +74,7 @@ def query_range(
     step: str,
     timeout: float = 20.0,
     basic_auth: tuple[str, str] | None = None,
+    bearer_token: str | None = None,
 ) -> tuple[Series, ...]:
     base = prometheus_url.rstrip("/")
     params = urlencode(
@@ -50,11 +86,36 @@ def query_range(
         }
     )
     url = f"{base}/api/v1/query_range?{params}"
+    payload = _query_json(
+        url,
+        query,
+        timeout=timeout,
+        basic_auth=basic_auth,
+        bearer_token=bearer_token,
+    )
+
+    data = payload.get("data", {})
+    if data.get("resultType") != "matrix":
+        raise PrometheusError(f"Prometheus query did not return a range vector: {query}")
+
+    return tuple(Series.from_prometheus(item) for item in data.get("result", []))
+
+
+def _query_json(
+    url: str,
+    query: str,
+    *,
+    timeout: float,
+    basic_auth: tuple[str, str] | None,
+    bearer_token: str | None,
+) -> dict[str, Any]:
     headers = {"Accept": "application/json"}
     if basic_auth:
         username, password = basic_auth
         token = b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
         headers["Authorization"] = f"Basic {token}"
+    if bearer_token:
+        headers["Authorization"] = f"Bearer {bearer_token}"
     request = Request(url, headers=headers)
 
     try:
@@ -70,12 +131,7 @@ def query_range(
     if payload.get("status") != "success":
         message = payload.get("error") or payload.get("errorType") or "unknown error"
         raise PrometheusError(f"Prometheus query failed for {query}: {message}")
-
-    data = payload.get("data", {})
-    if data.get("resultType") != "matrix":
-        raise PrometheusError(f"Prometheus query did not return a range vector: {query}")
-
-    return tuple(Series.from_prometheus(item) for item in data.get("result", []))
+    return payload
 
 
 def collect_bundle(
@@ -88,6 +144,7 @@ def collect_bundle(
     kube_gpu_request_query: str | None = DEFAULT_KUBE_GPU_REQUEST_QUERY,
     timeout: float = 20.0,
     basic_auth: tuple[str, str] | None = None,
+    bearer_token: str | None = None,
 ) -> MetricBundle:
     end = datetime.now(timezone.utc)
     start = datetime.fromtimestamp(end.timestamp() - hours * 3600, tz=timezone.utc)
@@ -101,6 +158,7 @@ def collect_bundle(
             step,
             timeout=timeout,
             basic_auth=basic_auth,
+            bearer_token=bearer_token,
         )
 
     return MetricBundle(
@@ -112,6 +170,7 @@ def collect_bundle(
             step,
             timeout=timeout,
             basic_auth=basic_auth,
+            bearer_token=bearer_token,
         ),
         memory_used=query_range(
             prometheus_url,
@@ -121,6 +180,7 @@ def collect_bundle(
             step,
             timeout=timeout,
             basic_auth=basic_auth,
+            bearer_token=bearer_token,
         ),
         memory_total=query_range(
             prometheus_url,
@@ -130,6 +190,7 @@ def collect_bundle(
             step,
             timeout=timeout,
             basic_auth=basic_auth,
+            bearer_token=bearer_token,
         ),
         gpu_requests=gpu_requests,
     )

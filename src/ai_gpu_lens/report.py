@@ -73,7 +73,9 @@ def render_html(report: AuditReport) -> str:
           <td>{escape(ns.namespace)}</td>
           <td>{num(ns.utilized_gpu_hour_equivalent)}</td>
           <td>{num(ns.requested_gpu_hours)}</td>
+          <td>{num(ns.over_requested_gpu_hours)}</td>
           <td>{money(ns.estimated_request_cost)}</td>
+          <td>{money(ns.estimated_over_request_cost)}</td>
           <td>{pct(ns.avg_utilization)}</td>
           <td>{ns.series_count}</td>
         </tr>
@@ -87,7 +89,10 @@ def render_html(report: AuditReport) -> str:
           <td>{escape(item.pod)}</td>
           <td>{num(item.avg_requested_gpus)}</td>
           <td>{num(item.requested_gpu_hours)}</td>
+          <td>{num(item.utilized_gpu_hour_equivalent)}</td>
+          <td>{num(item.over_requested_gpu_hours)}</td>
           <td>{money(item.estimated_request_cost)}</td>
+          <td>{money(item.estimated_over_request_cost)}</td>
         </tr>
         """
         for item in report.workload_requests
@@ -95,9 +100,83 @@ def render_html(report: AuditReport) -> str:
     if not workload_request_rows:
         workload_request_rows = f"""
         <tr>
-          <td colspan="5">{escape(t(language, "not_available"))}</td>
+          <td colspan="7">{escape(t(language, "not_available"))}</td>
         </tr>
         """
+    model_rows = "\n".join(
+        f"""
+        <tr>
+          <td>{escape(item.model)}</td>
+          <td>{item.count}</td>
+          <td>{pct(item.avg_utilization)}</td>
+          <td>{num(item.total_idle_gpu_hours)}</td>
+          <td>{money(item.price_per_gpu_hour)}</td>
+          <td>{money(item.estimated_idle_cost)}</td>
+        </tr>
+        """
+        for item in report.gpu_models
+    )
+    idle_gpu_rows = "\n".join(
+        f"""
+        <tr>
+          <td>{escape(gpu.node)}</td>
+          <td>{escape(gpu.index)}</td>
+          <td>{escape(gpu.model)}</td>
+          <td>{escape(gpu.namespace)}</td>
+          <td>{escape(gpu.pod)}</td>
+          <td>{pct(gpu.avg_utilization)}</td>
+          <td>{num(gpu.idle_hours)}</td>
+          <td>{money(gpu.estimated_idle_cost)}</td>
+        </tr>
+        """
+        for gpu in sorted(
+            report.gpus,
+            key=lambda item: (item.estimated_idle_cost, item.idle_hours),
+            reverse=True,
+        )[:10]
+        if gpu.idle_hours > 0
+    )
+    over_namespace_rows = "\n".join(
+        f"""
+        <tr>
+          <td>{escape(ns.namespace)}</td>
+          <td>{num(ns.requested_gpu_hours)}</td>
+          <td>{num(ns.utilized_gpu_hour_equivalent)}</td>
+          <td>{num(ns.over_requested_gpu_hours)}</td>
+          <td>{money(ns.estimated_over_request_cost)}</td>
+        </tr>
+        """
+        for ns in sorted(
+            report.namespaces,
+            key=lambda item: (
+                item.estimated_over_request_cost,
+                item.over_requested_gpu_hours,
+            ),
+            reverse=True,
+        )[:10]
+        if ns.over_requested_gpu_hours > 0
+    )
+    over_workload_rows = "\n".join(
+        f"""
+        <tr>
+          <td>{escape(item.namespace)}</td>
+          <td>{escape(item.pod)}</td>
+          <td>{num(item.requested_gpu_hours)}</td>
+          <td>{num(item.utilized_gpu_hour_equivalent)}</td>
+          <td>{num(item.over_requested_gpu_hours)}</td>
+          <td>{money(item.estimated_over_request_cost)}</td>
+        </tr>
+        """
+        for item in sorted(
+            report.workload_requests,
+            key=lambda item: (
+                item.estimated_over_request_cost,
+                item.over_requested_gpu_hours,
+            ),
+            reverse=True,
+        )[:10]
+        if item.over_requested_gpu_hours > 0
+    )
     recommendations = "\n".join(
         f"<li>{escape(item)}</li>" for item in report.recommendations
     )
@@ -248,6 +327,75 @@ def render_html(report: AuditReport) -> str:
       <ul>{recommendations}</ul>
     </section>
 
+    <h2>{escape(t(language, "top_idle_gpus"))}</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>{escape(t(language, "node"))}</th>
+            <th>{escape(t(language, "gpu"))}</th>
+            <th>{escape(t(language, "model"))}</th>
+            <th>{escape(t(language, "namespace"))}</th>
+            <th>{escape(t(language, "pod"))}</th>
+            <th>{escape(t(language, "avg_util"))}</th>
+            <th>{escape(t(language, "idle_hours"))}</th>
+            <th>{escape(t(language, "idle_cost"))}</th>
+          </tr>
+        </thead>
+        <tbody>{idle_gpu_rows}</tbody>
+      </table>
+    </div>
+
+    <h2>{escape(t(language, "top_over_requested_namespaces"))}</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>{escape(t(language, "namespace"))}</th>
+            <th>{escape(t(language, "requested_gpu_hours"))}</th>
+            <th>{escape(t(language, "utilized_gpu_hour_eq"))}</th>
+            <th>{escape(t(language, "over_requested_gpu_hours"))}</th>
+            <th>{escape(t(language, "over_requested_cost"))}</th>
+          </tr>
+        </thead>
+        <tbody>{over_namespace_rows}</tbody>
+      </table>
+    </div>
+
+    <h2>{escape(t(language, "top_over_requested_workloads"))}</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>{escape(t(language, "namespace"))}</th>
+            <th>{escape(t(language, "pod"))}</th>
+            <th>{escape(t(language, "requested_gpu_hours"))}</th>
+            <th>{escape(t(language, "utilized_gpu_hour_eq"))}</th>
+            <th>{escape(t(language, "over_requested_gpu_hours"))}</th>
+            <th>{escape(t(language, "over_requested_cost"))}</th>
+          </tr>
+        </thead>
+        <tbody>{over_workload_rows}</tbody>
+      </table>
+    </div>
+
+    <h2>{escape(t(language, "gpu_model_summary"))}</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>{escape(t(language, "model"))}</th>
+            <th>{escape(t(language, "gpus"))}</th>
+            <th>{escape(t(language, "avg_util"))}</th>
+            <th>{escape(t(language, "idle_gpu_hours"))}</th>
+            <th>{escape(t(language, "price_per_hour"))}</th>
+            <th>{escape(t(language, "idle_cost"))}</th>
+          </tr>
+        </thead>
+        <tbody>{model_rows}</tbody>
+      </table>
+    </div>
+
     <h2>{escape(t(language, "namespace_attribution"))}</h2>
     <div class="table-wrap">
       <table>
@@ -256,7 +404,9 @@ def render_html(report: AuditReport) -> str:
             <th>{escape(t(language, "namespace"))}</th>
             <th>{escape(t(language, "utilized_gpu_hour_eq"))}</th>
             <th>{escape(t(language, "requested_gpu_hours"))}</th>
+            <th>{escape(t(language, "over_requested_gpu_hours"))}</th>
             <th>{escape(t(language, "requested_cost"))}</th>
+            <th>{escape(t(language, "over_requested_cost"))}</th>
             <th>{escape(t(language, "avg_util"))}</th>
             <th>{escape(t(language, "series"))}</th>
           </tr>
@@ -274,7 +424,10 @@ def render_html(report: AuditReport) -> str:
             <th>{escape(t(language, "pod"))}</th>
             <th>{escape(t(language, "requested_gpus"))}</th>
             <th>{escape(t(language, "requested_gpu_hours"))}</th>
+            <th>{escape(t(language, "utilized_gpu_hour_eq"))}</th>
+            <th>{escape(t(language, "over_requested_gpu_hours"))}</th>
             <th>{escape(t(language, "requested_cost"))}</th>
+            <th>{escape(t(language, "over_requested_cost"))}</th>
           </tr>
         </thead>
         <tbody>{workload_request_rows}</tbody>
@@ -338,6 +491,125 @@ def render_markdown(report: AuditReport) -> str:
     lines.extend(
         [
             "",
+            f"## {t(language, 'top_idle_gpus')}",
+            "",
+            markdown_table(
+                [
+                    t(language, "node"),
+                    t(language, "gpu"),
+                    t(language, "model"),
+                    t(language, "namespace"),
+                    t(language, "pod"),
+                    t(language, "avg_util"),
+                    t(language, "idle_hours"),
+                    t(language, "idle_cost"),
+                ],
+                [
+                    [
+                        gpu.node,
+                        gpu.index,
+                        gpu.model,
+                        gpu.namespace,
+                        gpu.pod,
+                        pct(gpu.avg_utilization),
+                        num(gpu.idle_hours),
+                        money(gpu.estimated_idle_cost),
+                    ]
+                    for gpu in sorted(
+                        report.gpus,
+                        key=lambda item: (item.estimated_idle_cost, item.idle_hours),
+                        reverse=True,
+                    )[:10]
+                    if gpu.idle_hours > 0
+                ],
+            ),
+            "",
+            f"## {t(language, 'top_over_requested_namespaces')}",
+            "",
+            markdown_table(
+                [
+                    t(language, "namespace"),
+                    t(language, "requested_gpu_hours"),
+                    t(language, "utilized_gpu_hour_eq"),
+                    t(language, "over_requested_gpu_hours"),
+                    t(language, "over_requested_cost"),
+                ],
+                [
+                    [
+                        ns.namespace,
+                        num(ns.requested_gpu_hours),
+                        num(ns.utilized_gpu_hour_equivalent),
+                        num(ns.over_requested_gpu_hours),
+                        money(ns.estimated_over_request_cost),
+                    ]
+                    for ns in sorted(
+                        report.namespaces,
+                        key=lambda item: (
+                            item.estimated_over_request_cost,
+                            item.over_requested_gpu_hours,
+                        ),
+                        reverse=True,
+                    )[:10]
+                    if ns.over_requested_gpu_hours > 0
+                ],
+            ),
+            "",
+            f"## {t(language, 'top_over_requested_workloads')}",
+            "",
+            markdown_table(
+                [
+                    t(language, "namespace"),
+                    t(language, "pod"),
+                    t(language, "requested_gpu_hours"),
+                    t(language, "utilized_gpu_hour_eq"),
+                    t(language, "over_requested_gpu_hours"),
+                    t(language, "over_requested_cost"),
+                ],
+                [
+                    [
+                        item.namespace,
+                        item.pod,
+                        num(item.requested_gpu_hours),
+                        num(item.utilized_gpu_hour_equivalent),
+                        num(item.over_requested_gpu_hours),
+                        money(item.estimated_over_request_cost),
+                    ]
+                    for item in sorted(
+                        report.workload_requests,
+                        key=lambda item: (
+                            item.estimated_over_request_cost,
+                            item.over_requested_gpu_hours,
+                        ),
+                        reverse=True,
+                    )[:10]
+                    if item.over_requested_gpu_hours > 0
+                ],
+            ),
+            "",
+            f"## {t(language, 'gpu_model_summary')}",
+            "",
+            markdown_table(
+                [
+                    t(language, "model"),
+                    t(language, "gpus"),
+                    t(language, "avg_util"),
+                    t(language, "idle_gpu_hours"),
+                    t(language, "price_per_hour"),
+                    t(language, "idle_cost"),
+                ],
+                [
+                    [
+                        item.model,
+                        str(item.count),
+                        pct(item.avg_utilization),
+                        num(item.total_idle_gpu_hours),
+                        money(item.price_per_gpu_hour),
+                        money(item.estimated_idle_cost),
+                    ]
+                    for item in report.gpu_models
+                ],
+            ),
+            "",
             f"## {t(language, 'namespace_attribution')}",
             "",
             markdown_table(
@@ -345,7 +617,9 @@ def render_markdown(report: AuditReport) -> str:
                     t(language, "namespace"),
                     t(language, "utilized_gpu_hour_eq"),
                     t(language, "requested_gpu_hours"),
+                    t(language, "over_requested_gpu_hours"),
                     t(language, "requested_cost"),
+                    t(language, "over_requested_cost"),
                     t(language, "avg_util"),
                 ],
                 [
@@ -353,7 +627,9 @@ def render_markdown(report: AuditReport) -> str:
                         ns.namespace,
                         num(ns.utilized_gpu_hour_equivalent),
                         num(ns.requested_gpu_hours),
+                        num(ns.over_requested_gpu_hours),
                         money(ns.estimated_request_cost),
+                        money(ns.estimated_over_request_cost),
                         pct(ns.avg_utilization),
                     ]
                     for ns in report.namespaces
@@ -368,7 +644,10 @@ def render_markdown(report: AuditReport) -> str:
                     t(language, "pod"),
                     t(language, "requested_gpus"),
                     t(language, "requested_gpu_hours"),
+                    t(language, "utilized_gpu_hour_eq"),
+                    t(language, "over_requested_gpu_hours"),
                     t(language, "requested_cost"),
+                    t(language, "over_requested_cost"),
                 ],
                 [
                     [
@@ -376,7 +655,10 @@ def render_markdown(report: AuditReport) -> str:
                         item.pod,
                         num(item.avg_requested_gpus),
                         num(item.requested_gpu_hours),
+                        num(item.utilized_gpu_hour_equivalent),
+                        num(item.over_requested_gpu_hours),
                         money(item.estimated_request_cost),
+                        money(item.estimated_over_request_cost),
                     ]
                     for item in report.workload_requests
                 ],

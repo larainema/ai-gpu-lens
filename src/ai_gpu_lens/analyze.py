@@ -7,6 +7,7 @@ from typing import Callable
 from .i18n import DEFAULT_LANGUAGE, normalize_language, t
 from .model import (
     AuditReport,
+    GpuModelSummary,
     GpuSummary,
     MetricBundle,
     NamespaceSummary,
@@ -35,6 +36,7 @@ def analyze_bundle(
     memory_total = _latest_series_by_gpu(bundle.memory_total)
     gpus: list[GpuSummary] = []
     namespace_util_stats: dict[str, list[tuple[float, float]]] = defaultdict(list)
+    workload_utilized_gpu_hours: dict[tuple[str, str], float] = defaultdict(float)
     telemetry_gaps: set[str] = set()
 
     for key, series_group in _group_series_by_gpu(bundle.gpu_utilization).items():
@@ -76,6 +78,9 @@ def analyze_bundle(
         model = shared_label_value(series_group, ("modelName", "model", "gpu_model"))
         price = price_for_model(model, gpu_prices, price_per_gpu_hour)
         namespace_util_stats[namespace].append((avg_util, observed_hours))
+        workload_utilized_gpu_hours[(namespace, pod)] += (
+            avg_util / 100.0
+        ) * observed_hours
         gpus.append(
             GpuSummary(
                 gpu_id=key,
@@ -110,7 +115,9 @@ def analyze_bundle(
     workload_requests = build_workload_requests(
         bundle.gpu_requests,
         window_hours=window_hours,
+        step=step,
         default_price_per_gpu_hour=price_per_gpu_hour,
+        utilized_gpu_hours=workload_utilized_gpu_hours,
     )
     total_requested_gpu_hours = sum(
         item.requested_gpu_hours for item in workload_requests
@@ -126,25 +133,33 @@ def analyze_bundle(
             requested_cost + item.estimated_request_cost,
         )
 
-    namespaces = [
-        NamespaceSummary(
-            namespace=namespace,
-            utilized_gpu_hour_equivalent=sum(
-                (avg_util / 100.0) * observed_hours
-                for avg_util, observed_hours in samples
-            ),
-            requested_gpu_hours=request_by_namespace[namespace][0],
-            estimated_request_cost=request_by_namespace[namespace][1],
-            series_count=len(samples),
-            avg_utilization=(
-                sum(avg_util * observed_hours for avg_util, observed_hours in samples)
-                / sum(observed_hours for _, observed_hours in samples)
-            )
-            if sum(observed_hours for _, observed_hours in samples)
-            else 0.0,
+    namespaces = []
+    for namespace, samples in namespace_util_stats.items():
+        utilized_gpu_hours = sum(
+            (avg_util / 100.0) * observed_hours
+            for avg_util, observed_hours in samples
         )
-        for namespace, samples in namespace_util_stats.items()
-    ]
+        requested_gpu_hours = request_by_namespace[namespace][0]
+        over_requested_gpu_hours = max(0.0, requested_gpu_hours - utilized_gpu_hours)
+        observed_hours = sum(observed_hours for _, observed_hours in samples)
+        namespaces.append(
+            NamespaceSummary(
+                namespace=namespace,
+                utilized_gpu_hour_equivalent=utilized_gpu_hours,
+                requested_gpu_hours=requested_gpu_hours,
+                over_requested_gpu_hours=over_requested_gpu_hours,
+                estimated_request_cost=request_by_namespace[namespace][1],
+                estimated_over_request_cost=over_requested_gpu_hours
+                * price_per_gpu_hour,
+                series_count=len(samples),
+                avg_utilization=(
+                    sum(avg_util * observed_hours for avg_util, observed_hours in samples)
+                    / observed_hours
+                )
+                if observed_hours
+                else 0.0,
+            )
+        )
     util_namespaces = {item.namespace for item in namespaces}
     for namespace, (requested_hours, requested_cost) in request_by_namespace.items():
         if namespace in util_namespaces:
@@ -153,7 +168,9 @@ def analyze_bundle(
             NamespaceSummary(
                 namespace=namespace,
                 requested_gpu_hours=requested_hours,
+                over_requested_gpu_hours=requested_hours,
                 estimated_request_cost=requested_cost,
+                estimated_over_request_cost=requested_hours * price_per_gpu_hour,
             )
         )
     namespaces.sort(
@@ -168,6 +185,8 @@ def analyze_bundle(
         telemetry_gaps.add(t(language, "gap_deduped_gpu_series"))
     if not bundle.gpu_requests:
         telemetry_gaps.add(t(language, "gap_no_kube_gpu_requests"))
+
+    gpu_models = build_gpu_model_summaries(gpus)
 
     recommendations = build_recommendations(
         gpus,
@@ -193,6 +212,7 @@ def analyze_bundle(
         estimated_idle_cost=estimated_idle_cost,
         estimated_request_cost=estimated_request_cost,
         gpus=gpus,
+        gpu_models=gpu_models,
         namespaces=namespaces,
         workload_requests=workload_requests,
         recommendations=recommendations,
@@ -261,28 +281,92 @@ def build_workload_requests(
     series_list: tuple[Series, ...],
     *,
     window_hours: float,
+    step: str,
     default_price_per_gpu_hour: float,
+    utilized_gpu_hours: dict[tuple[str, str], float] | None = None,
 ) -> list[WorkloadRequestSummary]:
     summaries: list[WorkloadRequestSummary] = []
+    utilized_gpu_hours = utilized_gpu_hours or {}
     for series in series_list:
         if not series.values:
             continue
         values = [max(0.0, value) for _, value in series.values]
         avg_requested = sum(values) / len(values)
-        observed_hours = _observed_hours(series, fallback_hours=window_hours)
+        observed_hours = _observed_hours(
+            series,
+            fallback_hours=min(window_hours, step_to_hours(step)),
+        )
         requested_gpu_hours = avg_requested * observed_hours
+        namespace = label_value(series.metric, ("namespace",))
+        pod = label_value(series.metric, ("pod", "pod_name"))
+        utilized = utilized_gpu_hours.get((namespace, pod), 0.0)
+        over_requested = max(0.0, requested_gpu_hours - utilized)
         summaries.append(
             WorkloadRequestSummary(
-                namespace=label_value(series.metric, ("namespace",)),
-                pod=label_value(series.metric, ("pod", "pod_name")),
+                namespace=namespace,
+                pod=pod,
                 avg_requested_gpus=avg_requested,
                 requested_gpu_hours=requested_gpu_hours,
                 estimated_request_cost=requested_gpu_hours * default_price_per_gpu_hour,
+                utilized_gpu_hour_equivalent=utilized,
+                over_requested_gpu_hours=over_requested,
+                estimated_over_request_cost=over_requested
+                * default_price_per_gpu_hour,
                 samples=len(values),
             )
         )
     summaries.sort(
         key=lambda item: (item.estimated_request_cost, item.requested_gpu_hours),
+        reverse=True,
+    )
+    return summaries
+
+
+def step_to_hours(step: str) -> float:
+    value = step.strip().lower()
+    if not value:
+        return 1.0 / 60.0
+    suffix = value[-1]
+    number = value[:-1] if suffix.isalpha() else value
+    try:
+        amount = float(number)
+    except ValueError:
+        return 1.0 / 60.0
+    if suffix == "s":
+        return amount / 3600.0
+    if suffix == "m":
+        return amount / 60.0
+    if suffix == "h":
+        return amount
+    if suffix == "d":
+        return amount * 24.0
+    return amount / 3600.0
+
+
+def build_gpu_model_summaries(gpus: list[GpuSummary]) -> list[GpuModelSummary]:
+    by_model: dict[str, list[GpuSummary]] = defaultdict(list)
+    for gpu in gpus:
+        by_model[gpu.model].append(gpu)
+    summaries = []
+    for model, items in by_model.items():
+        observed_hours = sum(gpu.observed_hours for gpu in items)
+        summaries.append(
+            GpuModelSummary(
+                model=model,
+                count=len(items),
+                avg_utilization=(
+                    sum(gpu.avg_utilization * gpu.observed_hours for gpu in items)
+                    / observed_hours
+                )
+                if observed_hours
+                else 0.0,
+                total_idle_gpu_hours=sum(gpu.idle_hours for gpu in items),
+                estimated_idle_cost=sum(gpu.estimated_idle_cost for gpu in items),
+                price_per_gpu_hour=items[0].price_per_gpu_hour if items else 0.0,
+            )
+        )
+    summaries.sort(
+        key=lambda item: (item.estimated_idle_cost, item.total_idle_gpu_hours),
         reverse=True,
     )
     return summaries

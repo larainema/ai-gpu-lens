@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import json
 import os
 from pathlib import Path
 from typing import Sequence
@@ -17,6 +18,7 @@ from .config import (
     parse_gpu_prices,
 )
 from .i18n import SUPPORTED_LANGUAGES, normalize_language, t
+from .doctor import render_doctor_text, run_doctor
 from .prometheus import (
     DEFAULT_GPU_UTIL_QUERY,
     DEFAULT_KUBE_GPU_REQUEST_QUERY,
@@ -156,7 +158,54 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Prompt for the HTTP Basic Auth password without storing it.",
     )
+    audit.add_argument(
+        "--bearer-token-env",
+        help="Environment variable containing a Bearer token.",
+    )
     audit.set_defaults(func=run_audit)
+
+    doctor = subparsers.add_parser(
+        "doctor",
+        help="Check whether a Prometheus or Grafana datasource proxy is audit-ready.",
+    )
+    doctor.add_argument(
+        "--config",
+        type=Path,
+        help="Optional ai-gpu-lens YAML/JSON config file.",
+    )
+    doctor.add_argument(
+        "--prometheus-url",
+        help="Prometheus base URL or Grafana datasource proxy URL.",
+    )
+    doctor.add_argument(
+        "--timeout",
+        type=float,
+        default=None,
+        help="Prometheus HTTP timeout in seconds. Default: 20.",
+    )
+    doctor.add_argument(
+        "--json-output",
+        type=Path,
+        help="Optional JSON doctor report path.",
+    )
+    doctor.add_argument(
+        "--basic-auth-user",
+        help="HTTP Basic Auth username for Prometheus or a Grafana datasource proxy.",
+    )
+    doctor.add_argument(
+        "--basic-auth-password-env",
+        help="Environment variable containing the HTTP Basic Auth password.",
+    )
+    doctor.add_argument(
+        "--prompt-basic-auth-password",
+        action="store_true",
+        help="Prompt for the HTTP Basic Auth password without storing it.",
+    )
+    doctor.add_argument(
+        "--bearer-token-env",
+        help="Environment variable containing a Bearer token.",
+    )
+    doctor.set_defaults(func=run_doctor_command)
     return parser
 
 
@@ -183,6 +232,7 @@ def run_audit(args: argparse.Namespace) -> int:
                 kube_gpu_request_query=options["kube_gpu_request_query"],
                 timeout=options["timeout"],
                 basic_auth=options["basic_auth"],
+                bearer_token=options["bearer_token"],
             )
         except PrometheusError as exc:
             print(f"error: {exc}")
@@ -292,7 +342,36 @@ def resolve_options(args: argparse.Namespace, config: dict[str, object]) -> dict
         "language": str(args.language or get_config_value(config, "language", "en")),
         "timeout": float(args.timeout or get_config_value(config, "timeout", 20.0)),
         "basic_auth": resolve_basic_auth(args, config),
+        "bearer_token": resolve_bearer_token(args, config),
     }
+
+
+def run_doctor_command(args: argparse.Namespace) -> int:
+    try:
+        config = load_config(args.config)
+        prometheus_url = args.prometheus_url or get_config_value(
+            config,
+            "prometheus_url",
+        )
+        if not prometheus_url:
+            raise ConfigError("provide --prometheus-url or set prometheus_url in config")
+        report = run_doctor(
+            str(prometheus_url),
+            timeout=float(args.timeout or get_config_value(config, "timeout", 20.0)),
+            basic_auth=resolve_basic_auth(args, config),
+            bearer_token=resolve_bearer_token(args, config),
+        )
+    except ConfigError as exc:
+        print(f"error: {exc}")
+        return 2
+    print(render_doctor_text(report))
+    if args.json_output:
+        args.json_output.parent.mkdir(parents=True, exist_ok=True)
+        args.json_output.write_text(
+            json.dumps(report.to_dict(), indent=2) + "\n",
+            encoding="utf-8",
+        )
+    return 0
 
 
 def resolve_basic_auth(
@@ -323,6 +402,19 @@ def resolve_basic_auth(
             "--basic-auth-password-env"
         )
     return (str(username), password)
+
+
+def resolve_bearer_token(
+    args: argparse.Namespace,
+    config: dict[str, object],
+) -> str | None:
+    token_env = args.bearer_token_env or get_config_value(config, "bearer_token_env")
+    if not token_env:
+        return None
+    token = os.environ.get(str(token_env))
+    if token is None:
+        raise ConfigError(f"environment variable is not set: {token_env}")
+    return token
 
 
 def main(argv: Sequence[str] | None = None) -> int:
