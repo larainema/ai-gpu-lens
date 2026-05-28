@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+from urllib.request import ProxyHandler, Request, build_opener
 
 from .model import MetricBundle, Series
 
@@ -18,6 +18,7 @@ DEFAULT_KUBE_GPU_REQUEST_QUERY = (
     'sum by (namespace, pod) '
     '(kube_pod_container_resource_requests{resource=~"nvidia_com_gpu|nvidia.com/gpu"})'
 )
+_OPENER = build_opener(ProxyHandler({}))
 
 
 class PrometheusError(RuntimeError):
@@ -45,7 +46,7 @@ def query_range(
     request = Request(url, headers={"Accept": "application/json"})
 
     try:
-        with urlopen(request, timeout=timeout) as response:
+        with _OPENER.open(request, timeout=timeout) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except HTTPError as exc:
         raise PrometheusError(f"Prometheus returned HTTP {exc.code} for {query}") from exc

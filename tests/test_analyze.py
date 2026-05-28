@@ -131,6 +131,42 @@ class AnalyzeBundleTest(unittest.TestCase):
         )
         self.assertEqual(price_for_model("unknown", {"default": 2.0}, 1.0), 2.0)
 
+    def test_dcgm_exporter_self_namespace_is_not_workload_namespace(self) -> None:
+        bundle = MetricBundle(
+            gpu_utilization=(
+                Series(
+                    metric={
+                        "Hostname": "gpu-node-1",
+                        "UUID": "GPU-a",
+                        "gpu": "0",
+                        "job": "nvidia-dcgm-exporter",
+                        "namespace": "gpu-operator",
+                        "pod": "nvidia-dcgm-exporter-abcde",
+                        "exported_namespace": "slurm",
+                        "exported_pod": "gpu-l40s-0",
+                    },
+                    values=((0, 10), (3600, 20)),
+                ),
+                Series(
+                    metric={
+                        "Hostname": "gpu-node-1",
+                        "UUID": "GPU-b",
+                        "gpu": "1",
+                        "job": "nvidia-dcgm-exporter",
+                        "namespace": "gpu-operator",
+                        "pod": "nvidia-dcgm-exporter-abcde",
+                    },
+                    values=((0, 0), (3600, 0)),
+                ),
+            )
+        )
+
+        report = analyze_bundle(bundle, window_hours=1.0, step="1h")
+
+        self.assertEqual(report.gpus[0].namespace, "slurm")
+        self.assertEqual(report.gpus[0].pod, "gpu-l40s-0")
+        self.assertEqual(report.gpus[1].namespace, "unknown")
+
     def test_chinese_recommendations_and_gaps(self) -> None:
         bundle = MetricBundle(
             gpu_utilization=(

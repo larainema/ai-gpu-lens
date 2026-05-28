@@ -62,8 +62,8 @@ def analyze_bundle(
                 avg_memory_percent = sum(memory_percents) / len(memory_percents)
                 max_memory_percent = max(memory_percents)
 
-        namespace = shared_label_value(series_group, ("namespace", "exported_namespace"))
-        pod = shared_label_value(series_group, ("pod", "pod_name", "exported_pod"))
+        namespace = shared_workload_label_value(series_group, "namespace")
+        pod = shared_workload_label_value(series_group, "pod")
         if namespace == UNKNOWN:
             telemetry_gaps.add(t(language, "gap_no_namespace_labels"))
         if pod == UNKNOWN:
@@ -348,6 +348,48 @@ def shared_label_value(series_group: list[Series], candidates: tuple[str, ...]) 
     if len(values) == 1:
         return next(iter(values))
     return "mixed"
+
+
+def shared_workload_label_value(series_group: list[Series], label: str) -> str:
+    if label == "namespace":
+        candidates = ("exported_namespace", "namespace")
+    elif label == "pod":
+        candidates = ("exported_pod", "pod_name", "pod")
+    else:
+        candidates = (label,)
+
+    values = {
+        workload_label_value(series.metric, candidates)
+        for series in series_group
+        if workload_label_value(series.metric, candidates) != UNKNOWN
+    }
+    if not values:
+        return UNKNOWN
+    if len(values) == 1:
+        return next(iter(values))
+    return "mixed"
+
+
+def workload_label_value(labels: dict[str, str], candidates: tuple[str, ...]) -> str:
+    for candidate in candidates:
+        value = labels.get(candidate)
+        if not value:
+            continue
+        if candidate in {"namespace", "pod"} and is_exporter_self_label(labels):
+            continue
+        return value
+    return UNKNOWN
+
+
+def is_exporter_self_label(labels: dict[str, str]) -> bool:
+    markers = ("nvidia-dcgm-exporter", "dcgm-exporter")
+    values = (
+        labels.get("job", ""),
+        labels.get("service", ""),
+        labels.get("container", ""),
+        labels.get("pod", ""),
+    )
+    return any(marker in value for value in values for marker in markers)
 
 
 def _ratio(values: list[float], predicate: Callable[[float], bool]) -> float:
