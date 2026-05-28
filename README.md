@@ -38,6 +38,13 @@ For direct module execution from a source checkout:
 PYTHONPATH=src python3 -m ai_gpu_lens --help
 ```
 
+Install directly from GitHub with pipx:
+
+```bash
+pipx install git+https://github.com/larainema/ai-gpu-lens.git
+ai-gpu-lens --help
+```
+
 ## Generate a sample report
 
 ```bash
@@ -141,6 +148,34 @@ export GRAFANA_TOKEN=...
   --output reports/grafana-audit.html
 ```
 
+## Docker
+
+Build the local image:
+
+```bash
+docker build -t ai-gpu-lens:local .
+```
+
+Run against the bundled sample data:
+
+```bash
+docker run --rm ai-gpu-lens:local audit \
+  --from-file examples/sample-prometheus.json \
+  --output /tmp/sample.html \
+  --json-output /tmp/sample.json \
+  --markdown-output /tmp/sample.md
+```
+
+For real environment configs, mount a local directory that is not committed:
+
+```bash
+docker run --rm \
+  -v "$PWD/local:/configs:ro" \
+  -v "$PWD/reports:/reports" \
+  ai-gpu-lens:local audit \
+  --config /configs/grafana.yaml
+```
+
 ## Doctor
 
 Use `doctor` to check whether a Prometheus or Grafana datasource proxy has the
@@ -242,10 +277,13 @@ will be grouped under `unknown`.
 ## Development
 
 ```bash
-python3 -m unittest discover -s tests
-./bin/ai-gpu-lens audit --from-file examples/sample-prometheus.json --output reports/sample.html
-./bin/ai-gpu-lens audit --config examples/ai-gpu-lens.yaml
+make test
+make sample
+make docker-build
 ```
+
+GitHub Actions runs unit tests on Python 3.10 through 3.13, builds the Python
+package, and smoke-tests the Docker image.
 
 ## License
 

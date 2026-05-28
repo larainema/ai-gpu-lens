@@ -20,6 +20,11 @@ classifiers = [
 ]
 dependencies = []
 
+[project.urls]
+Homepage = "https://github.com/larainema/ai-gpu-lens"
+Repository = "https://github.com/larainema/ai-gpu-lens"
+Issues = "https://github.com/larainema/ai-gpu-lens/issues"
+
 [project.scripts]
 ai-gpu-lens = "ai_gpu_lens.cli:main"
 
