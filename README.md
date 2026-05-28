@@ -103,6 +103,27 @@ You can override the metric names if your deployment uses recording rules:
 
 If kube-state-metrics is not installed, use `--skip-kube-gpu-requests`.
 
+## Audit through Grafana
+
+If Prometheus is only reachable through a Grafana datasource proxy, point
+`--prometheus-url` at the proxied datasource API. Use a Viewer-level account
+or service account token where possible.
+
+```bash
+./bin/ai-gpu-lens audit \
+  --prometheus-url https://grafana.example.com/api/datasources/proxy/uid/prometheus \
+  --basic-auth-user viewer \
+  --prompt-basic-auth-password \
+  --hours 24 \
+  --step 5m \
+  --output reports/grafana-audit.html \
+  --json-output reports/grafana-audit.json \
+  --markdown-output reports/grafana-audit.md
+```
+
+For automation, put the password in an environment variable and use
+`--basic-auth-password-env` instead of prompting.
+
 ## Config file
 
 `ai-gpu-lens` accepts a small YAML/JSON config file. CLI flags override config

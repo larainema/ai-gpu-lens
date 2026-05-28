@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from base64 import b64encode
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -37,6 +38,7 @@ def query_range(
     end: datetime,
     step: str,
     timeout: float = 20.0,
+    basic_auth: tuple[str, str] | None = None,
 ) -> tuple[Series, ...]:
     base = prometheus_url.rstrip("/")
     params = urlencode(
@@ -48,7 +50,12 @@ def query_range(
         }
     )
     url = f"{base}/api/v1/query_range?{params}"
-    request = Request(url, headers={"Accept": "application/json"})
+    headers = {"Accept": "application/json"}
+    if basic_auth:
+        username, password = basic_auth
+        token = b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
+        headers["Authorization"] = f"Basic {token}"
+    request = Request(url, headers=headers)
 
     try:
         with _OPENER.open(request, timeout=timeout) as response:
@@ -80,24 +87,49 @@ def collect_bundle(
     memory_total_query: str = DEFAULT_MEMORY_TOTAL_QUERY,
     kube_gpu_request_query: str | None = DEFAULT_KUBE_GPU_REQUEST_QUERY,
     timeout: float = 20.0,
+    basic_auth: tuple[str, str] | None = None,
 ) -> MetricBundle:
     end = datetime.now(timezone.utc)
     start = datetime.fromtimestamp(end.timestamp() - hours * 3600, tz=timezone.utc)
     gpu_requests: tuple[Series, ...] = ()
     if kube_gpu_request_query:
         gpu_requests = query_range(
-            prometheus_url, kube_gpu_request_query, start, end, step, timeout=timeout
+            prometheus_url,
+            kube_gpu_request_query,
+            start,
+            end,
+            step,
+            timeout=timeout,
+            basic_auth=basic_auth,
         )
 
     return MetricBundle(
         gpu_utilization=query_range(
-            prometheus_url, gpu_util_query, start, end, step, timeout=timeout
+            prometheus_url,
+            gpu_util_query,
+            start,
+            end,
+            step,
+            timeout=timeout,
+            basic_auth=basic_auth,
         ),
         memory_used=query_range(
-            prometheus_url, memory_used_query, start, end, step, timeout=timeout
+            prometheus_url,
+            memory_used_query,
+            start,
+            end,
+            step,
+            timeout=timeout,
+            basic_auth=basic_auth,
         ),
         memory_total=query_range(
-            prometheus_url, memory_total_query, start, end, step, timeout=timeout
+            prometheus_url,
+            memory_total_query,
+            start,
+            end,
+            step,
+            timeout=timeout,
+            basic_auth=basic_auth,
         ),
         gpu_requests=gpu_requests,
     )
