@@ -21,6 +21,13 @@ The first target is a practical consulting workflow:
 7 day GPU cost audit -> report -> concrete remediation backlog
 ```
 
+## Start Here
+
+- [Quickstart / 快速开始](docs/quickstart.md)
+- [Grafana datasource proxy](docs/grafana-datasource-proxy.md)
+- [Report guide / 报告解读](docs/report-guide.md)
+- [GPU audit playbook / GPU 审计交付流程](docs/audit-playbook.md)
+
 ## Current status
 
 This is an early MVP. It is intentionally dependency-light and uses only the
