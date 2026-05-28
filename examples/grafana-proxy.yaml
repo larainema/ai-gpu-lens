@@ -1,0 +1,28 @@
+# Example Grafana datasource proxy audit config.
+#
+# Do not store real passwords, tokens, internal hostnames, or kubeconfig paths
+# in a public repository. Keep environment-specific configs under local/.
+
+prometheus_url: https://grafana.example.com/api/datasources/proxy/uid/prometheus
+hours: 24
+step: 5m
+language: en
+
+output: reports/grafana-audit.html
+json_output: reports/grafana-audit.json
+markdown_output: reports/grafana-audit.md
+
+price_per_gpu_hour: 2.50
+gpu_prices:
+  default: 2.50
+  H100: 4.25
+  A100: 3.20
+  L40S: 1.35
+  4090: 0.65
+
+# Prefer a Viewer/service-account token for automation:
+# bearer_token_env: GRAFANA_TOKEN
+
+# For local interactive testing only:
+# basic_auth_user: viewer
+# prompt_basic_auth_password: true

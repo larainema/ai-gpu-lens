@@ -186,6 +186,10 @@ GPU model prices are matched by exact name first, then by substring. For
 example `H100` matches `NVIDIA H100 80GB HBM3`. The `default` price is used
 when no model-specific price matches.
 
+Keep environment-specific configs under `local/`; that directory is ignored by
+Git. Do not commit real Grafana URLs, kubeconfig paths, usernames, passwords, or
+tokens to a public repository.
+
 ## What it reports
 
 - Fleet average GPU utilization
