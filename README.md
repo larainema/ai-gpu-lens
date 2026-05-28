@@ -98,7 +98,7 @@ You can override the metric names if your deployment uses recording rules:
   --gpu-util-query 'avg by (Hostname, UUID, namespace, pod) (DCGM_FI_DEV_GPU_UTIL)' \
   --memory-used-query 'DCGM_FI_DEV_FB_USED' \
   --memory-total-query 'DCGM_FI_DEV_FB_TOTAL' \
-  --kube-gpu-request-query 'sum by (namespace, pod) (kube_pod_container_resource_requests{resource=~"nvidia_com_gpu|nvidia.com/gpu"})'
+  --kube-gpu-request-query 'sum by (namespace, pod) (kube_pod_container_resource_requests{resource=~"nvidia_com_gpu|nvidia.com/gpu"} * on(namespace, pod) group_left() max by (namespace, pod) (kube_pod_status_phase{phase=~"Pending|Running"} == 1))'
 ```
 
 If kube-state-metrics is not installed, use `--skip-kube-gpu-requests`.

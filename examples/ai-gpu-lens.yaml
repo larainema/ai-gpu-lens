@@ -23,4 +23,4 @@ active_threshold: 10
 gpu_util_query: DCGM_FI_DEV_GPU_UTIL
 memory_used_query: DCGM_FI_DEV_FB_USED
 memory_total_query: DCGM_FI_DEV_FB_TOTAL
-kube_gpu_request_query: sum by (namespace, pod) (kube_pod_container_resource_requests{resource=~"nvidia_com_gpu|nvidia.com/gpu"})
+kube_gpu_request_query: sum by (namespace, pod) (kube_pod_container_resource_requests{resource=~"nvidia_com_gpu|nvidia.com/gpu"} * on(namespace, pod) group_left() max by (namespace, pod) (kube_pod_status_phase{phase=~"Pending|Running"} == 1))

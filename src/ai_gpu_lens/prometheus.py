@@ -16,7 +16,12 @@ DEFAULT_MEMORY_USED_QUERY = "DCGM_FI_DEV_FB_USED"
 DEFAULT_MEMORY_TOTAL_QUERY = "DCGM_FI_DEV_FB_TOTAL"
 DEFAULT_KUBE_GPU_REQUEST_QUERY = (
     'sum by (namespace, pod) '
-    '(kube_pod_container_resource_requests{resource=~"nvidia_com_gpu|nvidia.com/gpu"})'
+    '('
+    'kube_pod_container_resource_requests{resource=~"nvidia_com_gpu|nvidia.com/gpu"} '
+    '* on(namespace, pod) group_left() '
+    'max by (namespace, pod) '
+    '(kube_pod_status_phase{phase=~"Pending|Running"} == 1)'
+    ')'
 )
 _OPENER = build_opener(ProxyHandler({}))
 
