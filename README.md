@@ -1,5 +1,11 @@
 # ai-gpu-lens
 
+[![CI](https://github.com/larainema/ai-gpu-lens/actions/workflows/ci.yml/badge.svg)](https://github.com/larainema/ai-gpu-lens/actions/workflows/ci.yml)
+[![Release](https://github.com/larainema/ai-gpu-lens/actions/workflows/release.yml/badge.svg)](https://github.com/larainema/ai-gpu-lens/actions/workflows/release.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/larainema/ai-gpu-lens)](https://github.com/larainema/ai-gpu-lens/releases)
+[![License](https://img.shields.io/github/license/larainema/ai-gpu-lens)](LICENSE)
+[![GHCR](https://img.shields.io/badge/ghcr.io-v0.1.0-blue)](https://github.com/larainema/ai-gpu-lens/pkgs/container/ai-gpu-lens)
+
 `ai-gpu-lens` is a small CLI for finding waste in Kubernetes GPU fleets.
 It reads DCGM exporter metrics from Prometheus and produces an HTML/JSON report
 covering GPU utilization, memory usage, idle GPU hours, namespace attribution,
