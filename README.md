@@ -176,6 +176,22 @@ docker run --rm \
   --config /configs/grafana.yaml
 ```
 
+After a release is published, use the GHCR image directly:
+
+```bash
+docker run --rm ghcr.io/larainema/ai-gpu-lens:v0.1.0 --help
+```
+
+For config-driven audits:
+
+```bash
+docker run --rm \
+  -v "$PWD/local:/configs:ro" \
+  -v "$PWD/reports:/reports" \
+  ghcr.io/larainema/ai-gpu-lens:v0.1.0 audit \
+  --config /configs/grafana.yaml
+```
+
 ## Doctor
 
 Use `doctor` to check whether a Prometheus or Grafana datasource proxy has the
@@ -284,6 +300,18 @@ make docker-build
 
 GitHub Actions runs unit tests on Python 3.10 through 3.13, builds the Python
 package, and smoke-tests the Docker image.
+
+## Release
+
+Create a version tag to publish a GitHub Release and GHCR image:
+
+```bash
+git tag -a v0.1.0 -m "v0.1.0"
+git push origin v0.1.0
+```
+
+The release workflow uploads the Python wheel/source distribution to the GitHub
+Release and pushes `ghcr.io/larainema/ai-gpu-lens:v0.1.0`.
 
 ## License
 
