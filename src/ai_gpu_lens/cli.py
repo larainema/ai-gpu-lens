@@ -6,6 +6,7 @@ from typing import Sequence
 
 from . import __version__
 from .analyze import analyze_bundle
+from .i18n import SUPPORTED_LANGUAGES, normalize_language, t
 from .prometheus import (
     DEFAULT_GPU_UTIL_QUERY,
     DEFAULT_MEMORY_TOTAL_QUERY,
@@ -95,6 +96,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="PromQL for framebuffer memory total. Default: DCGM_FI_DEV_FB_TOTAL.",
     )
     audit.add_argument(
+        "--language",
+        choices=SUPPORTED_LANGUAGES,
+        default="en",
+        help="Report language: en or zh. Default: en.",
+    )
+    audit.add_argument(
         "--timeout",
         type=float,
         default=20.0,
@@ -105,6 +112,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run_audit(args: argparse.Namespace) -> int:
+    language = normalize_language(args.language)
     if args.from_file:
         bundle = load_bundle(args.from_file)
     else:
@@ -129,19 +137,23 @@ def run_audit(args: argparse.Namespace) -> int:
         price_per_gpu_hour=args.price_per_gpu_hour,
         idle_threshold=args.idle_threshold,
         active_threshold=args.active_threshold,
+        language=language,
     )
     write_html_report(report, args.output)
     if args.json_output:
         write_json_report(report, args.json_output)
 
-    print(f"wrote HTML report: {args.output}")
+    print(t(language, "wrote_html", path=args.output))
     if args.json_output:
-        print(f"wrote JSON report: {args.json_output}")
+        print(t(language, "json_written", path=args.json_output))
     print(
-        "summary: "
-        f"{report.total_gpus} GPU series, "
-        f"{report.fleet_avg_utilization:.1f}% avg util, "
-        f"{report.total_idle_gpu_hours:.2f} idle GPU hours"
+        t(
+            language,
+            "summary",
+            gpus=report.total_gpus,
+            util=report.fleet_avg_utilization,
+            idle_hours=report.total_idle_gpu_hours,
+        )
     )
     return 0
 

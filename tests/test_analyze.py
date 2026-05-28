@@ -59,6 +59,7 @@ class AnalyzeBundleTest(unittest.TestCase):
         )
 
         self.assertEqual(report.total_gpus, 2)
+        self.assertEqual(report.language, "en")
         self.assertAlmostEqual(report.total_idle_gpu_hours, 1.3333333333)
         self.assertAlmostEqual(report.estimated_idle_cost, 2.6666666666)
         self.assertEqual(report.namespaces[0].namespace, "llm-prod")
@@ -68,6 +69,31 @@ class AnalyzeBundleTest(unittest.TestCase):
         )
         self.assertIn(
             "Memory used metric is missing for one or more GPUs.",
+            report.telemetry_gaps,
+        )
+
+    def test_chinese_recommendations_and_gaps(self) -> None:
+        bundle = MetricBundle(
+            gpu_utilization=(
+                Series(
+                    metric={"Hostname": "gpu-node-1", "UUID": "GPU-a", "gpu": "0"},
+                    values=((0, 0), (3600, 0)),
+                ),
+            )
+        )
+
+        report = analyze_bundle(
+            bundle,
+            window_hours=1.0,
+            step="1h",
+            price_per_gpu_hour=2.0,
+            language="zh",
+        )
+
+        self.assertEqual(report.language, "zh")
+        self.assertIn("排查 1 条平均利用率低于 5% 的 GPU 序列。", report.recommendations)
+        self.assertIn(
+            "GPU 利用率序列缺少 Kubernetes namespace 标签。",
             report.telemetry_gaps,
         )
 

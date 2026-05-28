@@ -6,6 +6,7 @@ from html import escape
 from pathlib import Path
 from typing import Any
 
+from .i18n import t
 from .model import AuditReport
 
 
@@ -22,11 +23,12 @@ def write_html_report(report: AuditReport, path: Path) -> None:
 
 
 def render_html(report: AuditReport) -> str:
+    language = report.language
     cards = [
-        ("GPUs", f"{report.total_gpus}"),
-        ("Fleet avg util", pct(report.fleet_avg_utilization)),
-        ("Idle GPU hours", num(report.total_idle_gpu_hours)),
-        ("Idle cost", money(report.estimated_idle_cost)),
+        (t(language, "gpus"), f"{report.total_gpus}"),
+        (t(language, "fleet_avg_util"), pct(report.fleet_avg_utilization)),
+        (t(language, "idle_gpu_hours"), num(report.total_idle_gpu_hours)),
+        (t(language, "idle_cost"), money(report.estimated_idle_cost)),
     ]
     card_html = "\n".join(
         f"""
@@ -50,7 +52,7 @@ def render_html(report: AuditReport) -> str:
           <td>{pct(gpu.max_utilization)}</td>
           <td>{pct(gpu.active_ratio * 100)}</td>
           <td>{num(gpu.idle_hours)}</td>
-          <td>{optional_pct(gpu.avg_memory_percent)}</td>
+          <td>{optional_pct(gpu.avg_memory_percent, language)}</td>
           <td>{money(gpu.estimated_idle_cost)}</td>
         </tr>
         """
@@ -74,14 +76,14 @@ def render_html(report: AuditReport) -> str:
         f"<li>{escape(item)}</li>" for item in report.telemetry_gaps
     )
     if not telemetry_gaps:
-        telemetry_gaps = "<li>No major telemetry gaps detected.</li>"
+        telemetry_gaps = f"<li>{escape(t(language, 'no_telemetry_gaps'))}</li>"
 
     return f"""<!doctype html>
-<html lang="en">
+<html lang="{escape(t(language, "lang_html"))}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ai-gpu-lens report</title>
+  <title>{escape(t(language, "report_title"))}</title>
   <style>
     :root {{
       color-scheme: light;
@@ -199,12 +201,12 @@ def render_html(report: AuditReport) -> str:
   <main>
     <header>
       <div>
-        <h1>ai-gpu-lens report</h1>
-        <div class="subtitle">GPU utilization, idle hours, and cost attribution</div>
+        <h1>{escape(t(language, "report_title"))}</h1>
+        <div class="subtitle">{escape(t(language, "report_subtitle"))}</div>
       </div>
       <div class="meta">
-        Generated {escape(report.generated_at)}<br>
-        Window {num(report.window_hours)}h, step {escape(report.step)}
+        {escape(t(language, "generated"))} {escape(report.generated_at)}<br>
+        {escape(t(language, "window"))} {num(report.window_hours)}h, step {escape(report.step)}
       </div>
     </header>
 
@@ -212,49 +214,49 @@ def render_html(report: AuditReport) -> str:
       {card_html}
     </section>
 
-    <h2>Recommendations</h2>
+    <h2>{escape(t(language, "recommendations"))}</h2>
     <section class="panel">
       <ul>{recommendations}</ul>
     </section>
 
-    <h2>Namespace Attribution</h2>
+    <h2>{escape(t(language, "namespace_attribution"))}</h2>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
-            <th>Namespace</th>
-            <th>Utilized GPU-hour eq.</th>
-            <th>Avg util</th>
-            <th>Series</th>
+            <th>{escape(t(language, "namespace"))}</th>
+            <th>{escape(t(language, "utilized_gpu_hour_eq"))}</th>
+            <th>{escape(t(language, "avg_util"))}</th>
+            <th>{escape(t(language, "series"))}</th>
           </tr>
         </thead>
         <tbody>{namespace_rows}</tbody>
       </table>
     </div>
 
-    <h2>GPU Detail</h2>
+    <h2>{escape(t(language, "gpu_detail"))}</h2>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
-            <th>Node</th>
-            <th>GPU</th>
-            <th>Model</th>
-            <th>Namespace</th>
-            <th>Pod</th>
-            <th>Avg util</th>
-            <th>Max util</th>
-            <th>Active ratio</th>
-            <th>Idle hours</th>
-            <th>Avg mem</th>
-            <th>Idle cost</th>
+            <th>{escape(t(language, "node"))}</th>
+            <th>{escape(t(language, "gpu"))}</th>
+            <th>{escape(t(language, "model"))}</th>
+            <th>{escape(t(language, "namespace"))}</th>
+            <th>{escape(t(language, "pod"))}</th>
+            <th>{escape(t(language, "avg_util"))}</th>
+            <th>{escape(t(language, "max_util"))}</th>
+            <th>{escape(t(language, "active_ratio"))}</th>
+            <th>{escape(t(language, "idle_hours"))}</th>
+            <th>{escape(t(language, "avg_mem"))}</th>
+            <th>{escape(t(language, "idle_cost"))}</th>
           </tr>
         </thead>
         <tbody>{gpu_rows}</tbody>
       </table>
     </div>
 
-    <h2>Telemetry Gaps</h2>
+    <h2>{escape(t(language, "telemetry_gaps"))}</h2>
     <section class="panel">
       <ul>{telemetry_gaps}</ul>
     </section>
@@ -268,9 +270,9 @@ def pct(value: float) -> str:
     return f"{value:.1f}%"
 
 
-def optional_pct(value: float | None) -> str:
+def optional_pct(value: float | None, language: str = "en") -> str:
     if value is None:
-        return "n/a"
+        return t(language, "not_available")
     return pct(value)
 
 

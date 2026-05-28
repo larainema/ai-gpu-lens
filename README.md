@@ -5,6 +5,10 @@ It reads DCGM exporter metrics from Prometheus and produces an HTML/JSON report
 covering GPU utilization, memory usage, idle GPU hours, namespace attribution,
 and quick recommendations.
 
+`ai-gpu-lens` 是一个面向 Kubernetes GPU 集群的小型审计 CLI。它从
+Prometheus/DCGM 读取指标，生成中英文 HTML/JSON 报告，帮助定位 GPU
+利用率低、显存使用异常、空闲 GPU 小时和 namespace 成本归因问题。
+
 The first target is a practical consulting workflow:
 
 ```text
@@ -44,6 +48,17 @@ PYTHONPATH=src python3 -m ai_gpu_lens --help
   --price-per-gpu-hour 2.50
 ```
 
+Generate a Chinese report:
+
+```bash
+./bin/ai-gpu-lens audit \
+  --from-file examples/sample-prometheus.json \
+  --output reports/sample.zh.html \
+  --json-output reports/sample.zh.json \
+  --price-per-gpu-hour 2.50 \
+  --language zh
+```
+
 ## Audit a Prometheus endpoint
 
 ```bash
@@ -55,6 +70,9 @@ PYTHONPATH=src python3 -m ai_gpu_lens --help
   --json-output reports/gpu-audit.json \
   --price-per-gpu-hour 2.50
 ```
+
+Use `--language en` or `--language zh` to choose the report language. English is
+the default.
 
 By default the tool queries these DCGM metrics:
 
@@ -82,6 +100,16 @@ You can override the metric names if your deployment uses recording rules:
 - Gaps in telemetry that make attribution weaker
 - Practical recommendations for the next audit pass
 
+## 报告内容
+
+- GPU 集群平均利用率
+- 估算的空闲 GPU 小时
+- 基于 `--price-per-gpu-hour` 的浪费成本估算
+- 单卡利用率和显存使用情况
+- namespace 维度的 GPU 小时归因
+- 影响成本归因准确性的遥测缺口
+- 下一轮审计可执行建议
+
 ## Prometheus label expectations
 
 The analyzer works best when DCGM exporter exposes Kubernetes labels:
@@ -102,6 +130,10 @@ will be grouped under `unknown`.
 python3 -m unittest discover -s tests
 ./bin/ai-gpu-lens audit --from-file examples/sample-prometheus.json --output reports/sample.html
 ```
+
+## License
+
+This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE).
 
 ## Roadmap
 

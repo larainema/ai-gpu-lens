@@ -80,6 +80,7 @@ class NamespaceSummary:
 @dataclass
 class AuditReport:
     generated_at: str
+    language: str
     window_hours: float
     step: str
     price_per_gpu_hour: float

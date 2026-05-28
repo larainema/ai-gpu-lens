@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import datetime, timezone
+from typing import Callable
 
+from .i18n import DEFAULT_LANGUAGE, normalize_language, t
 from .model import AuditReport, GpuSummary, MetricBundle, NamespaceSummary, Series
 
 
@@ -17,7 +19,9 @@ def analyze_bundle(
     price_per_gpu_hour: float = 0.0,
     idle_threshold: float = 5.0,
     active_threshold: float = 10.0,
+    language: str = DEFAULT_LANGUAGE,
 ) -> AuditReport:
+    language = normalize_language(language)
     memory_used = _latest_series_by_gpu(bundle.memory_used)
     memory_total = _latest_series_by_gpu(bundle.memory_total)
     gpus: list[GpuSummary] = []
@@ -52,15 +56,13 @@ def analyze_bundle(
         namespace = label_value(series.metric, ("namespace", "exported_namespace"))
         pod = label_value(series.metric, ("pod", "pod_name", "exported_pod"))
         if namespace == UNKNOWN:
-            telemetry_gaps.add(
-                "GPU utilization series do not include Kubernetes namespace labels."
-            )
+            telemetry_gaps.add(t(language, "gap_no_namespace_labels"))
         if pod == UNKNOWN:
-            telemetry_gaps.add("GPU utilization series do not include pod labels.")
+            telemetry_gaps.add(t(language, "gap_no_pod_labels"))
         if key not in memory_used:
-            telemetry_gaps.add("Memory used metric is missing for one or more GPUs.")
+            telemetry_gaps.add(t(language, "gap_no_memory_used"))
         if key not in memory_total:
-            telemetry_gaps.add("Memory total metric is missing for one or more GPUs.")
+            telemetry_gaps.add(t(language, "gap_no_memory_total"))
 
         namespace_stats[namespace].append((avg_util, observed_hours))
         gpus.append(
@@ -121,10 +123,12 @@ def analyze_bundle(
         total_idle_gpu_hours=total_idle_hours,
         price_per_gpu_hour=price_per_gpu_hour,
         telemetry_gaps=telemetry_gaps,
+        language=language,
     )
 
     return AuditReport(
         generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        language=language,
         window_hours=window_hours,
         step=step,
         price_per_gpu_hour=price_per_gpu_hour,
@@ -146,6 +150,7 @@ def build_recommendations(
     total_idle_gpu_hours: float,
     price_per_gpu_hour: float,
     telemetry_gaps: set[str],
+    language: str = DEFAULT_LANGUAGE,
 ) -> list[str]:
     recommendations: list[str] = []
     idle_gpus = [gpu for gpu in gpus if gpu.avg_utilization < 5.0]
@@ -155,38 +160,26 @@ def build_recommendations(
 
     if idle_gpus:
         recommendations.append(
-            f"Investigate {len(idle_gpus)} GPU series with average utilization below 5%."
+            t(language, "rec_investigate_idle_gpus", count=len(idle_gpus))
         )
     if low_util_gpus:
-        recommendations.append(
-            "Review bin-packing, autoscaling, and model replica counts for GPUs below "
-            "20% average utilization and 50% peak utilization."
-        )
+        recommendations.append(t(language, "rec_review_binpacking"))
     if fleet_avg_utilization < 35.0 and gpus:
-        recommendations.append(
-            "Fleet utilization is below 35%; start with scheduling fragmentation, "
-            "right-sizing model replicas, and batch sizing."
-        )
+        recommendations.append(t(language, "rec_low_fleet_utilization"))
     if total_idle_gpu_hours > 0 and price_per_gpu_hour > 0:
         recommendations.append(
-            f"At the configured price, idle GPU time represents about "
-            f"${total_idle_gpu_hours * price_per_gpu_hour:,.2f} in the audit window."
+            t(
+                language,
+                "rec_idle_cost",
+                cost=total_idle_gpu_hours * price_per_gpu_hour,
+            )
         )
     if any(gpu.avg_memory_percent is None for gpu in gpus):
-        recommendations.append(
-            "Add or validate DCGM framebuffer memory metrics to separate compute-bound "
-            "and memory-bound workloads."
-        )
+        recommendations.append(t(language, "rec_add_memory_metrics"))
     if telemetry_gaps:
-        recommendations.append(
-            "Enable Kubernetes pod resource labels in dcgm-exporter so cost can be "
-            "attributed to teams, namespaces, and workloads."
-        )
+        recommendations.append(t(language, "rec_enable_k8s_labels"))
     if not recommendations:
-        recommendations.append(
-            "No major waste pattern was detected in this window; compare against a "
-            "longer 7 day audit before making capacity changes."
-        )
+        recommendations.append(t(language, "rec_no_major_waste"))
     return recommendations
 
 
@@ -198,10 +191,10 @@ def _latest_series_by_gpu(series_list: tuple[Series, ...]) -> dict[str, Series]:
     return series_by_gpu
 
 
-def _ratio(values: list[float], predicate: object) -> float:
+def _ratio(values: list[float], predicate: Callable[[float], bool]) -> float:
     if not values:
         return 0.0
-    return sum(1 for value in values if predicate(value)) / len(values)  # type: ignore[operator]
+    return sum(1 for value in values if predicate(value)) / len(values)
 
 
 def _observed_hours(series: Series, *, fallback_hours: float) -> float:
