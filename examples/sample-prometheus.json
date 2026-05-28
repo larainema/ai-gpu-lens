@@ -1,0 +1,146 @@
+{
+  "gpu_utilization": [
+    {
+      "metric": {
+        "__name__": "DCGM_FI_DEV_GPU_UTIL",
+        "Hostname": "gpu-node-1",
+        "UUID": "GPU-a111",
+        "gpu": "0",
+        "modelName": "NVIDIA H100 80GB HBM3",
+        "namespace": "llm-prod",
+        "pod": "vllm-llama-0",
+        "container": "vllm"
+      },
+      "values": [
+        [1779830400, "62"],
+        [1779834000, "76"],
+        [1779837600, "82"],
+        [1779841200, "71"],
+        [1779844800, "66"]
+      ]
+    },
+    {
+      "metric": {
+        "__name__": "DCGM_FI_DEV_GPU_UTIL",
+        "Hostname": "gpu-node-1",
+        "UUID": "GPU-b222",
+        "gpu": "1",
+        "modelName": "NVIDIA H100 80GB HBM3",
+        "namespace": "notebooks",
+        "pod": "jupyter-alice-0",
+        "container": "notebook"
+      },
+      "values": [
+        [1779830400, "0"],
+        [1779834000, "1"],
+        [1779837600, "0"],
+        [1779841200, "6"],
+        [1779844800, "0"]
+      ]
+    },
+    {
+      "metric": {
+        "__name__": "DCGM_FI_DEV_GPU_UTIL",
+        "Hostname": "gpu-node-2",
+        "UUID": "GPU-c333",
+        "gpu": "0",
+        "modelName": "NVIDIA L40S",
+        "namespace": "batch-train",
+        "pod": "trainer-20260528-0",
+        "container": "trainer"
+      },
+      "values": [
+        [1779830400, "15"],
+        [1779834000, "17"],
+        [1779837600, "9"],
+        [1779841200, "12"],
+        [1779844800, "18"]
+      ]
+    }
+  ],
+  "memory_used": [
+    {
+      "metric": {
+        "__name__": "DCGM_FI_DEV_FB_USED",
+        "Hostname": "gpu-node-1",
+        "UUID": "GPU-a111",
+        "gpu": "0"
+      },
+      "values": [
+        [1779830400, "43000"],
+        [1779834000, "51200"],
+        [1779837600, "53600"],
+        [1779841200, "50100"],
+        [1779844800, "48800"]
+      ]
+    },
+    {
+      "metric": {
+        "__name__": "DCGM_FI_DEV_FB_USED",
+        "Hostname": "gpu-node-1",
+        "UUID": "GPU-b222",
+        "gpu": "1"
+      },
+      "values": [
+        [1779830400, "9000"],
+        [1779834000, "9200"],
+        [1779837600, "9100"],
+        [1779841200, "9300"],
+        [1779844800, "8900"]
+      ]
+    },
+    {
+      "metric": {
+        "__name__": "DCGM_FI_DEV_FB_USED",
+        "Hostname": "gpu-node-2",
+        "UUID": "GPU-c333",
+        "gpu": "0"
+      },
+      "values": [
+        [1779830400, "27500"],
+        [1779834000, "29100"],
+        [1779837600, "30200"],
+        [1779841200, "28800"],
+        [1779844800, "29500"]
+      ]
+    }
+  ],
+  "memory_total": [
+    {
+      "metric": {
+        "__name__": "DCGM_FI_DEV_FB_TOTAL",
+        "Hostname": "gpu-node-1",
+        "UUID": "GPU-a111",
+        "gpu": "0"
+      },
+      "values": [
+        [1779830400, "81559"],
+        [1779844800, "81559"]
+      ]
+    },
+    {
+      "metric": {
+        "__name__": "DCGM_FI_DEV_FB_TOTAL",
+        "Hostname": "gpu-node-1",
+        "UUID": "GPU-b222",
+        "gpu": "1"
+      },
+      "values": [
+        [1779830400, "81559"],
+        [1779844800, "81559"]
+      ]
+    },
+    {
+      "metric": {
+        "__name__": "DCGM_FI_DEV_FB_TOTAL",
+        "Hostname": "gpu-node-2",
+        "UUID": "GPU-c333",
+        "gpu": "0"
+      },
+      "values": [
+        [1779830400, "46068"],
+        [1779844800, "46068"]
+      ]
+    }
+  ]
+}

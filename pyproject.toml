@@ -1,0 +1,28 @@
+[project]
+name = "ai-gpu-lens"
+version = "0.1.0"
+description = "CLI reports for GPU utilization, idle hours, and namespace attribution from Prometheus/DCGM metrics."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [
+  { name = "Dong Ma" }
+]
+keywords = ["gpu", "kubernetes", "prometheus", "dcgm", "finops", "ai-infra"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: System Administrators",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: System :: Monitoring",
+]
+dependencies = []
+
+[project.scripts]
+ai-gpu-lens = "ai_gpu_lens.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
