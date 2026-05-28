@@ -105,6 +105,20 @@ Suggested backlog columns:
 priority | owner | namespace/workload | finding | proposed action | risk | expected savings | status
 ```
 
+Use `bundle` to create the standard delivery directory and zip archive:
+
+```bash
+ai-gpu-lens bundle \
+  --config local/customer-grafana.yaml \
+  --name customer-gpu-audit \
+  --output-dir reports/customer-gpu-audit \
+  --archive reports/customer-gpu-audit.zip
+```
+
+For live Prometheus or Grafana endpoints, the bundle includes `doctor.json` and
+`doctor.txt`. Use `--skip-doctor` if you do not want preflight details in the
+delivery package.
+
 ## 8. Follow-Up
 
 After remediation:

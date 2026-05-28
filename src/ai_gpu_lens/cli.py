@@ -4,6 +4,8 @@ import argparse
 import getpass
 import json
 import os
+import zipfile
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Sequence
 
@@ -19,6 +21,7 @@ from .config import (
 )
 from .i18n import SUPPORTED_LANGUAGES, normalize_language, t
 from .doctor import render_doctor_text, run_doctor
+from .model import AuditReport
 from .prometheus import (
     DEFAULT_GPU_UTIL_QUERY,
     DEFAULT_KUBE_GPU_REQUEST_QUERY,
@@ -175,6 +178,152 @@ def build_parser() -> argparse.ArgumentParser:
     )
     audit.set_defaults(func=run_audit)
 
+    bundle = subparsers.add_parser(
+        "bundle",
+        help="Generate a complete audit delivery bundle.",
+    )
+    bundle.add_argument(
+        "--config",
+        type=Path,
+        help="Optional ai-gpu-lens YAML/JSON config file.",
+    )
+    bundle_source = bundle.add_mutually_exclusive_group()
+    bundle_source.add_argument(
+        "--prometheus-url",
+        help="Prometheus base URL, for example http://localhost:9090.",
+    )
+    bundle_source.add_argument(
+        "--from-file",
+        type=Path,
+        help="Read a saved metric bundle JSON file.",
+    )
+    bundle.add_argument(
+        "--name",
+        default=None,
+        help="Bundle name. Default: gpu-audit.",
+    )
+    bundle.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Directory for bundle files. Default: reports/<name>.",
+    )
+    bundle.add_argument(
+        "--archive",
+        type=Path,
+        default=None,
+        help="Zip archive path. Default: <output-dir>.zip.",
+    )
+    bundle.add_argument(
+        "--no-archive",
+        action="store_true",
+        help="Write bundle files without creating a zip archive.",
+    )
+    bundle.add_argument(
+        "--skip-doctor",
+        action="store_true",
+        help="Skip doctor output even when using a live Prometheus/Grafana endpoint.",
+    )
+    bundle.add_argument(
+        "--hours",
+        type=float,
+        default=None,
+        help="Query window in hours. Default: 24.",
+    )
+    bundle.add_argument(
+        "--step",
+        default=None,
+        help="Prometheus query_range step. Default: 5m.",
+    )
+    bundle.add_argument(
+        "--price-per-gpu-hour",
+        type=float,
+        default=None,
+        help="Cost used to estimate idle spend.",
+    )
+    bundle.add_argument(
+        "--gpu-price",
+        action="append",
+        help="Override price for a GPU model, MODEL=PRICE. Can be repeated.",
+    )
+    bundle.add_argument(
+        "--idle-threshold",
+        type=float,
+        default=None,
+        help="Utilization percent below which a sample is idle. Default: 5.",
+    )
+    bundle.add_argument(
+        "--active-threshold",
+        type=float,
+        default=None,
+        help="Utilization percent at or above which a sample is active. Default: 10.",
+    )
+    bundle.add_argument(
+        "--gpu-util-query",
+        default=None,
+        help="PromQL for GPU utilization. Default: DCGM_FI_DEV_GPU_UTIL.",
+    )
+    bundle.add_argument(
+        "--memory-used-query",
+        default=None,
+        help="PromQL for framebuffer memory used. Default: DCGM_FI_DEV_FB_USED.",
+    )
+    bundle.add_argument(
+        "--memory-total-query",
+        default=None,
+        help="PromQL for framebuffer memory total. Default: DCGM_FI_DEV_FB_TOTAL.",
+    )
+    bundle.add_argument(
+        "--memory-total-fallback-query",
+        default=None,
+        help="Fallback PromQL for framebuffer memory total.",
+    )
+    bundle.add_argument(
+        "--skip-memory-total-fallback",
+        action="store_true",
+        help="Do not try the framebuffer memory total fallback query.",
+    )
+    bundle.add_argument(
+        "--kube-gpu-request-query",
+        default=None,
+        help="PromQL for kube-state-metrics GPU requests.",
+    )
+    bundle.add_argument(
+        "--skip-kube-gpu-requests",
+        action="store_true",
+        help="Do not query kube-state-metrics GPU request data.",
+    )
+    bundle.add_argument(
+        "--language",
+        choices=SUPPORTED_LANGUAGES,
+        default=None,
+        help="Report language: en or zh. Default: en.",
+    )
+    bundle.add_argument(
+        "--timeout",
+        type=float,
+        default=None,
+        help="Prometheus HTTP timeout in seconds. Default: 20.",
+    )
+    bundle.add_argument(
+        "--basic-auth-user",
+        help="HTTP Basic Auth username for Prometheus or a Grafana datasource proxy.",
+    )
+    bundle.add_argument(
+        "--basic-auth-password-env",
+        help="Environment variable containing the HTTP Basic Auth password.",
+    )
+    bundle.add_argument(
+        "--prompt-basic-auth-password",
+        action="store_true",
+        help="Prompt for the HTTP Basic Auth password without storing it.",
+    )
+    bundle.add_argument(
+        "--bearer-token-env",
+        help="Environment variable containing a Bearer token.",
+    )
+    bundle.set_defaults(func=run_bundle)
+
     doctor = subparsers.add_parser(
         "doctor",
         help="Check whether a Prometheus or Grafana datasource proxy is audit-ready.",
@@ -229,37 +378,11 @@ def run_audit(args: argparse.Namespace) -> int:
         return 2
 
     language = normalize_language(options["language"])
-    if options["from_file"]:
-        bundle = load_bundle(options["from_file"])
-    else:
-        try:
-            bundle = collect_bundle(
-                options["prometheus_url"],
-                hours=options["hours"],
-                step=options["step"],
-                gpu_util_query=options["gpu_util_query"],
-                memory_used_query=options["memory_used_query"],
-                memory_total_query=options["memory_total_query"],
-                memory_total_fallback_query=options["memory_total_fallback_query"],
-                kube_gpu_request_query=options["kube_gpu_request_query"],
-                timeout=options["timeout"],
-                basic_auth=options["basic_auth"],
-                bearer_token=options["bearer_token"],
-            )
-        except PrometheusError as exc:
-            print(f"error: {exc}")
-            return 2
-
-    report = analyze_bundle(
-        bundle,
-        window_hours=options["hours"],
-        step=options["step"],
-        price_per_gpu_hour=options["price_per_gpu_hour"],
-        gpu_prices=options["gpu_prices"],
-        idle_threshold=options["idle_threshold"],
-        active_threshold=options["active_threshold"],
-        language=language,
-    )
+    try:
+        report = build_audit_report(options)
+    except PrometheusError as exc:
+        print(f"error: {exc}")
+        return 2
     write_html_report(report, options["output"])
     if options["json_output"]:
         write_json_report(report, options["json_output"])
@@ -281,6 +404,240 @@ def run_audit(args: argparse.Namespace) -> int:
         )
     )
     return 0
+
+
+def build_audit_report(options: dict[str, object]) -> AuditReport:
+    language = normalize_language(str(options["language"]))
+    if options["from_file"]:
+        bundle = load_bundle(options["from_file"])
+    else:
+        bundle = collect_bundle(
+            str(options["prometheus_url"]),
+            hours=float(options["hours"]),
+            step=str(options["step"]),
+            gpu_util_query=str(options["gpu_util_query"]),
+            memory_used_query=str(options["memory_used_query"]),
+            memory_total_query=str(options["memory_total_query"]),
+            memory_total_fallback_query=options["memory_total_fallback_query"],
+            kube_gpu_request_query=options["kube_gpu_request_query"],
+            timeout=float(options["timeout"]),
+            basic_auth=options["basic_auth"],
+            bearer_token=options["bearer_token"],
+        )
+
+    return analyze_bundle(
+        bundle,
+        window_hours=float(options["hours"]),
+        step=str(options["step"]),
+        price_per_gpu_hour=float(options["price_per_gpu_hour"]),
+        gpu_prices=options["gpu_prices"],
+        idle_threshold=float(options["idle_threshold"]),
+        active_threshold=float(options["active_threshold"]),
+        language=language,
+    )
+
+
+def run_bundle(args: argparse.Namespace) -> int:
+    try:
+        config = load_config(args.config)
+        bundle_name = str(
+            args.name or get_config_value(config, "bundle_name", "gpu-audit")
+        )
+        output_dir = (
+            args.output_dir
+            or config_path(get_config_value(config, "bundle_output_dir"))
+            or Path("reports") / bundle_name
+        )
+        archive_path = (
+            args.archive
+            or config_path(get_config_value(config, "bundle_archive"))
+            or output_dir.parent / f"{output_dir.name}.zip"
+        )
+        args.output = output_dir / "audit.html"
+        args.json_output = output_dir / "audit.json"
+        args.markdown_output = output_dir / "audit.md"
+        options = resolve_options(args, config)
+    except ConfigError as exc:
+        print(f"error: {exc}")
+        return 2
+
+    try:
+        report = build_audit_report(options)
+    except PrometheusError as exc:
+        print(f"error: {exc}")
+        return 2
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    clear_bundle_outputs(output_dir)
+    write_html_report(report, options["output"])
+    write_json_report(report, options["json_output"])
+    write_markdown_report(report, options["markdown_output"])
+
+    doctor_report = None
+    skip_doctor = bool(
+        args.skip_doctor or get_config_value(config, "bundle_skip_doctor", False)
+    )
+    if options["prometheus_url"] and not skip_doctor:
+        try:
+            doctor_report = run_doctor(
+                str(options["prometheus_url"]),
+                timeout=float(options["timeout"]),
+                basic_auth=options["basic_auth"],
+                bearer_token=options["bearer_token"],
+            )
+        except PrometheusError as exc:
+            print(f"warning: doctor failed: {exc}")
+        else:
+            (output_dir / "doctor.json").write_text(
+                json.dumps(doctor_report.to_dict(), indent=2) + "\n",
+                encoding="utf-8",
+            )
+            (output_dir / "doctor.txt").write_text(
+                render_doctor_text(doctor_report) + "\n",
+                encoding="utf-8",
+            )
+
+    manifest = build_bundle_manifest(
+        bundle_name,
+        output_dir,
+        report,
+        source="file" if options["from_file"] else "prometheus",
+        doctor_included=doctor_report is not None,
+    )
+    (output_dir / "manifest.json").write_text(
+        json.dumps(manifest, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    (output_dir / "README.md").write_text(
+        render_bundle_readme(bundle_name, report, manifest),
+        encoding="utf-8",
+    )
+
+    print(f"wrote bundle directory: {output_dir}")
+    no_archive = bool(
+        args.no_archive or get_config_value(config, "bundle_no_archive", False)
+    )
+    if not no_archive:
+        archive_bundle(output_dir, archive_path)
+        print(f"wrote bundle archive: {archive_path}")
+    print(
+        t(
+            report.language,
+            "summary",
+            gpus=report.total_gpus,
+            util=report.fleet_avg_utilization,
+            idle_hours=report.total_idle_gpu_hours,
+        )
+    )
+    return 0
+
+
+def build_bundle_manifest(
+    bundle_name: str,
+    output_dir: Path,
+    report: AuditReport,
+    *,
+    source: str,
+    doctor_included: bool,
+) -> dict[str, object]:
+    files = [
+        str(path.relative_to(output_dir))
+        for path in sorted(output_dir.rglob("*"))
+        if path.is_file() and path.name != "manifest.json"
+    ]
+    files.extend(["manifest.json", "README.md"])
+    return {
+        "name": bundle_name,
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "ai_gpu_lens_version": __version__,
+        "source": source,
+        "doctor_included": doctor_included,
+        "window_hours": report.window_hours,
+        "step": report.step,
+        "language": report.language,
+        "total_gpus": report.total_gpus,
+        "fleet_avg_utilization": report.fleet_avg_utilization,
+        "total_idle_gpu_hours": report.total_idle_gpu_hours,
+        "estimated_idle_cost": report.estimated_idle_cost,
+        "total_requested_gpu_hours": report.total_requested_gpu_hours,
+        "estimated_request_cost": report.estimated_request_cost,
+        "files": sorted(set(files)),
+    }
+
+
+def clear_bundle_outputs(output_dir: Path) -> None:
+    for name in (
+        "README.md",
+        "audit.html",
+        "audit.json",
+        "audit.md",
+        "doctor.json",
+        "doctor.txt",
+        "manifest.json",
+    ):
+        path = output_dir / name
+        if path.exists():
+            path.unlink()
+
+
+def render_bundle_readme(
+    bundle_name: str,
+    report: AuditReport,
+    manifest: dict[str, object],
+) -> str:
+    action_items = "\n".join(
+        "- [{priority}] {target}: {action} (${savings:,.2f})".format(
+            priority=item.priority,
+            target=item.target,
+            action=item.action,
+            savings=item.estimated_window_savings,
+        )
+        for item in report.action_items
+    )
+    if not action_items:
+        action_items = "- n/a"
+    telemetry_gaps = "\n".join(f"- {item}" for item in report.telemetry_gaps)
+    if not telemetry_gaps:
+        telemetry_gaps = "- n/a"
+    files = "\n".join(f"- `{item}`" for item in manifest["files"])
+    return f"""# {bundle_name}
+
+Generated by ai-gpu-lens {__version__}.
+
+## Summary
+
+- GPUs: {report.total_gpus}
+- Window: {report.window_hours:.2f}h, step {report.step}
+- Fleet average utilization: {report.fleet_avg_utilization:.1f}%
+- Idle GPU hours: {report.total_idle_gpu_hours:,.2f}
+- Estimated idle cost: ${report.estimated_idle_cost:,.2f}
+- Requested GPU hours: {report.total_requested_gpu_hours:,.2f}
+- Estimated requested cost: ${report.estimated_request_cost:,.2f}
+
+## Files
+
+{files}
+
+## Action Items
+
+{action_items}
+
+## Telemetry Gaps
+
+{telemetry_gaps}
+"""
+
+
+def archive_bundle(output_dir: Path, archive_path: Path) -> None:
+    archive_path.parent.mkdir(parents=True, exist_ok=True)
+    archive_resolved = archive_path.resolve()
+    with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for path in sorted(output_dir.rglob("*")):
+            if not path.is_file():
+                continue
+            if path.resolve() == archive_resolved:
+                continue
+            archive.write(path, path.relative_to(output_dir))
 
 
 def resolve_options(args: argparse.Namespace, config: dict[str, object]) -> dict[str, object]:

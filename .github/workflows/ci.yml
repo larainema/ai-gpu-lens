@@ -38,6 +38,16 @@ jobs:
             --price-per-gpu-hour 2.50 \
             --language zh
 
+      - name: Generate sample bundle
+        run: |
+          ./bin/ai-gpu-lens bundle \
+            --from-file examples/sample-prometheus.json \
+            --name sample-delivery \
+            --output-dir reports/sample-delivery \
+            --archive reports/sample-delivery.zip \
+            --price-per-gpu-hour 2.50 \
+            --language zh
+
   package:
     name: Package
     runs-on: ubuntu-latest
@@ -64,6 +74,11 @@ jobs:
             --output /tmp/sample.html \
             --json-output /tmp/sample.json \
             --markdown-output /tmp/sample.md
+          ai-gpu-lens bundle \
+            --from-file examples/sample-prometheus.json \
+            --name sample-delivery \
+            --output-dir /tmp/sample-delivery \
+            --archive /tmp/sample-delivery.zip
 
   docker:
     name: Docker
@@ -83,3 +98,8 @@ jobs:
             --output /tmp/sample.html \
             --json-output /tmp/sample.json \
             --markdown-output /tmp/sample.md
+          docker run --rm ai-gpu-lens:ci bundle \
+            --from-file examples/sample-prometheus.json \
+            --name sample-delivery \
+            --output-dir /tmp/sample-delivery \
+            --archive /tmp/sample-delivery.zip

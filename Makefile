@@ -1,4 +1,4 @@
-.PHONY: test sample docker-build docker-sample
+.PHONY: test sample bundle docker-build docker-sample
 
 test:
 	python3 -m unittest discover -s tests
@@ -9,6 +9,15 @@ sample:
 		--output reports/sample.html \
 		--json-output reports/sample.json \
 		--markdown-output reports/sample.md \
+		--price-per-gpu-hour 2.50 \
+		--language zh
+
+bundle:
+	./bin/ai-gpu-lens bundle \
+		--from-file examples/sample-prometheus.json \
+		--name sample-delivery \
+		--output-dir reports/sample-delivery \
+		--archive reports/sample-delivery.zip \
 		--price-per-gpu-hour 2.50 \
 		--language zh
 

@@ -1,0 +1,18 @@
+# Example ai-gpu-lens delivery bundle config.
+#
+# Real environment configs belong under local/, not in a public repository.
+
+from_file: examples/sample-prometheus.json
+hours: 24
+step: 5m
+language: zh
+
+bundle_name: sample-delivery
+bundle_output_dir: reports/sample-delivery
+bundle_archive: reports/sample-delivery.zip
+
+price_per_gpu_hour: 2.50
+gpu_prices:
+  default: 2.50
+  H100: 4.25
+  L40S: 1.35

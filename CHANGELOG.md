@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.2.0 - 2026-05-29
+
+- Add `ai-gpu-lens bundle` for shareable audit delivery packages.
+- Include audit HTML, Markdown, JSON, manifest, and bundle README outputs.
+- Include doctor JSON/text outputs in bundles for live Prometheus or Grafana endpoints.
+- Add bundle example config, documentation, Makefile target, and CI smoke tests.
+
 ## v0.1.0 - 2026-05-28
 
 - Generate bilingual GPU audit reports from Prometheus/DCGM metrics.
