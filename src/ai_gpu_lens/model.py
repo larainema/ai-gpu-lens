@@ -32,6 +32,7 @@ class MetricBundle:
     gpu_utilization: tuple[Series, ...] = ()
     memory_used: tuple[Series, ...] = ()
     memory_total: tuple[Series, ...] = ()
+    gpu_requests: tuple[Series, ...] = ()
 
     @classmethod
     def from_mapping(cls, payload: dict[str, Any]) -> "MetricBundle":
@@ -45,6 +46,9 @@ class MetricBundle:
             ),
             memory_total=tuple(
                 Series.from_prometheus(item) for item in payload.get("memory_total", [])
+            ),
+            gpu_requests=tuple(
+                Series.from_prometheus(item) for item in payload.get("gpu_requests", [])
             ),
         )
 
@@ -65,7 +69,9 @@ class GpuSummary:
     observed_hours: float
     avg_memory_percent: float | None = None
     max_memory_percent: float | None = None
+    price_per_gpu_hour: float = 0.0
     estimated_idle_cost: float = 0.0
+    source_series_count: int = 1
     samples: int = 0
 
 
@@ -73,8 +79,20 @@ class GpuSummary:
 class NamespaceSummary:
     namespace: str
     utilized_gpu_hour_equivalent: float = 0.0
+    requested_gpu_hours: float = 0.0
+    estimated_request_cost: float = 0.0
     series_count: int = 0
     avg_utilization: float = 0.0
+
+
+@dataclass
+class WorkloadRequestSummary:
+    namespace: str
+    pod: str
+    avg_requested_gpus: float
+    requested_gpu_hours: float
+    estimated_request_cost: float
+    samples: int = 0
 
 
 @dataclass
@@ -84,11 +102,15 @@ class AuditReport:
     window_hours: float
     step: str
     price_per_gpu_hour: float
+    gpu_prices: dict[str, float]
     total_gpus: int
+    total_requested_gpu_hours: float
     fleet_avg_utilization: float
     total_idle_gpu_hours: float
     estimated_idle_cost: float
+    estimated_request_cost: float
     gpus: list[GpuSummary] = field(default_factory=list)
     namespaces: list[NamespaceSummary] = field(default_factory=list)
+    workload_requests: list[WorkloadRequestSummary] = field(default_factory=list)
     recommendations: list[str] = field(default_factory=list)
     telemetry_gaps: list[str] = field(default_factory=list)

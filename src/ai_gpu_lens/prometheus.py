@@ -14,6 +14,10 @@ from .model import MetricBundle, Series
 DEFAULT_GPU_UTIL_QUERY = "DCGM_FI_DEV_GPU_UTIL"
 DEFAULT_MEMORY_USED_QUERY = "DCGM_FI_DEV_FB_USED"
 DEFAULT_MEMORY_TOTAL_QUERY = "DCGM_FI_DEV_FB_TOTAL"
+DEFAULT_KUBE_GPU_REQUEST_QUERY = (
+    'sum by (namespace, pod) '
+    '(kube_pod_container_resource_requests{resource=~"nvidia_com_gpu|nvidia.com/gpu"})'
+)
 
 
 class PrometheusError(RuntimeError):
@@ -68,10 +72,17 @@ def collect_bundle(
     gpu_util_query: str = DEFAULT_GPU_UTIL_QUERY,
     memory_used_query: str = DEFAULT_MEMORY_USED_QUERY,
     memory_total_query: str = DEFAULT_MEMORY_TOTAL_QUERY,
+    kube_gpu_request_query: str | None = DEFAULT_KUBE_GPU_REQUEST_QUERY,
     timeout: float = 20.0,
 ) -> MetricBundle:
     end = datetime.now(timezone.utc)
     start = datetime.fromtimestamp(end.timestamp() - hours * 3600, tz=timezone.utc)
+    gpu_requests: tuple[Series, ...] = ()
+    if kube_gpu_request_query:
+        gpu_requests = query_range(
+            prometheus_url, kube_gpu_request_query, start, end, step, timeout=timeout
+        )
+
     return MetricBundle(
         gpu_utilization=query_range(
             prometheus_url, gpu_util_query, start, end, step, timeout=timeout
@@ -82,6 +93,7 @@ def collect_bundle(
         memory_total=query_range(
             prometheus_url, memory_total_query, start, end, step, timeout=timeout
         ),
+        gpu_requests=gpu_requests,
     )
 
 

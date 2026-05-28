@@ -22,6 +22,11 @@ def write_html_report(report: AuditReport, path: Path) -> None:
     path.write_text(render_html(report), encoding="utf-8")
 
 
+def write_markdown_report(report: AuditReport, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(render_markdown(report), encoding="utf-8")
+
+
 def render_html(report: AuditReport) -> str:
     language = report.language
     cards = [
@@ -29,6 +34,8 @@ def render_html(report: AuditReport) -> str:
         (t(language, "fleet_avg_util"), pct(report.fleet_avg_utilization)),
         (t(language, "idle_gpu_hours"), num(report.total_idle_gpu_hours)),
         (t(language, "idle_cost"), money(report.estimated_idle_cost)),
+        (t(language, "requested_gpu_hours"), num(report.total_requested_gpu_hours)),
+        (t(language, "requested_cost"), money(report.estimated_request_cost)),
     ]
     card_html = "\n".join(
         f"""
@@ -53,7 +60,9 @@ def render_html(report: AuditReport) -> str:
           <td>{pct(gpu.active_ratio * 100)}</td>
           <td>{num(gpu.idle_hours)}</td>
           <td>{optional_pct(gpu.avg_memory_percent, language)}</td>
+          <td>{money(gpu.price_per_gpu_hour)}</td>
           <td>{money(gpu.estimated_idle_cost)}</td>
+          <td>{gpu.source_series_count}</td>
         </tr>
         """
         for gpu in report.gpus
@@ -63,12 +72,32 @@ def render_html(report: AuditReport) -> str:
         <tr>
           <td>{escape(ns.namespace)}</td>
           <td>{num(ns.utilized_gpu_hour_equivalent)}</td>
+          <td>{num(ns.requested_gpu_hours)}</td>
+          <td>{money(ns.estimated_request_cost)}</td>
           <td>{pct(ns.avg_utilization)}</td>
           <td>{ns.series_count}</td>
         </tr>
         """
         for ns in report.namespaces
     )
+    workload_request_rows = "\n".join(
+        f"""
+        <tr>
+          <td>{escape(item.namespace)}</td>
+          <td>{escape(item.pod)}</td>
+          <td>{num(item.avg_requested_gpus)}</td>
+          <td>{num(item.requested_gpu_hours)}</td>
+          <td>{money(item.estimated_request_cost)}</td>
+        </tr>
+        """
+        for item in report.workload_requests
+    )
+    if not workload_request_rows:
+        workload_request_rows = f"""
+        <tr>
+          <td colspan="5">{escape(t(language, "not_available"))}</td>
+        </tr>
+        """
     recommendations = "\n".join(
         f"<li>{escape(item)}</li>" for item in report.recommendations
     )
@@ -131,7 +160,7 @@ def render_html(report: AuditReport) -> str:
     }}
     .grid {{
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(6, minmax(0, 1fr));
       gap: 12px;
     }}
     .metric-card, .panel {{
@@ -226,11 +255,29 @@ def render_html(report: AuditReport) -> str:
           <tr>
             <th>{escape(t(language, "namespace"))}</th>
             <th>{escape(t(language, "utilized_gpu_hour_eq"))}</th>
+            <th>{escape(t(language, "requested_gpu_hours"))}</th>
+            <th>{escape(t(language, "requested_cost"))}</th>
             <th>{escape(t(language, "avg_util"))}</th>
             <th>{escape(t(language, "series"))}</th>
           </tr>
         </thead>
         <tbody>{namespace_rows}</tbody>
+      </table>
+    </div>
+
+    <h2>{escape(t(language, "workload_requests"))}</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>{escape(t(language, "namespace"))}</th>
+            <th>{escape(t(language, "pod"))}</th>
+            <th>{escape(t(language, "requested_gpus"))}</th>
+            <th>{escape(t(language, "requested_gpu_hours"))}</th>
+            <th>{escape(t(language, "requested_cost"))}</th>
+          </tr>
+        </thead>
+        <tbody>{workload_request_rows}</tbody>
       </table>
     </div>
 
@@ -249,7 +296,9 @@ def render_html(report: AuditReport) -> str:
             <th>{escape(t(language, "active_ratio"))}</th>
             <th>{escape(t(language, "idle_hours"))}</th>
             <th>{escape(t(language, "avg_mem"))}</th>
+            <th>{escape(t(language, "price_per_hour"))}</th>
             <th>{escape(t(language, "idle_cost"))}</th>
+            <th>{escape(t(language, "source_series"))}</th>
           </tr>
         </thead>
         <tbody>{gpu_rows}</tbody>
@@ -264,6 +313,132 @@ def render_html(report: AuditReport) -> str:
 </body>
 </html>
 """
+
+
+def render_markdown(report: AuditReport) -> str:
+    language = report.language
+    lines = [
+        f"# {t(language, 'report_title')}",
+        "",
+        t(language, "report_subtitle"),
+        "",
+        f"- {t(language, 'generated')}: {report.generated_at}",
+        f"- {t(language, 'window')}: {num(report.window_hours)}h, step {report.step}",
+        f"- {t(language, 'gpus')}: {report.total_gpus}",
+        f"- {t(language, 'fleet_avg_util')}: {pct(report.fleet_avg_utilization)}",
+        f"- {t(language, 'idle_gpu_hours')}: {num(report.total_idle_gpu_hours)}",
+        f"- {t(language, 'idle_cost')}: {money(report.estimated_idle_cost)}",
+        f"- {t(language, 'requested_gpu_hours')}: {num(report.total_requested_gpu_hours)}",
+        f"- {t(language, 'requested_cost')}: {money(report.estimated_request_cost)}",
+        "",
+        f"## {t(language, 'recommendations')}",
+        "",
+    ]
+    lines.extend(f"- {item}" for item in report.recommendations)
+    lines.extend(
+        [
+            "",
+            f"## {t(language, 'namespace_attribution')}",
+            "",
+            markdown_table(
+                [
+                    t(language, "namespace"),
+                    t(language, "utilized_gpu_hour_eq"),
+                    t(language, "requested_gpu_hours"),
+                    t(language, "requested_cost"),
+                    t(language, "avg_util"),
+                ],
+                [
+                    [
+                        ns.namespace,
+                        num(ns.utilized_gpu_hour_equivalent),
+                        num(ns.requested_gpu_hours),
+                        money(ns.estimated_request_cost),
+                        pct(ns.avg_utilization),
+                    ]
+                    for ns in report.namespaces
+                ],
+            ),
+            "",
+            f"## {t(language, 'workload_requests')}",
+            "",
+            markdown_table(
+                [
+                    t(language, "namespace"),
+                    t(language, "pod"),
+                    t(language, "requested_gpus"),
+                    t(language, "requested_gpu_hours"),
+                    t(language, "requested_cost"),
+                ],
+                [
+                    [
+                        item.namespace,
+                        item.pod,
+                        num(item.avg_requested_gpus),
+                        num(item.requested_gpu_hours),
+                        money(item.estimated_request_cost),
+                    ]
+                    for item in report.workload_requests
+                ],
+            ),
+            "",
+            f"## {t(language, 'gpu_detail')}",
+            "",
+            markdown_table(
+                [
+                    t(language, "node"),
+                    t(language, "gpu"),
+                    t(language, "model"),
+                    t(language, "namespace"),
+                    t(language, "pod"),
+                    t(language, "avg_util"),
+                    t(language, "idle_hours"),
+                    t(language, "price_per_hour"),
+                    t(language, "idle_cost"),
+                ],
+                [
+                    [
+                        gpu.node,
+                        gpu.index,
+                        gpu.model,
+                        gpu.namespace,
+                        gpu.pod,
+                        pct(gpu.avg_utilization),
+                        num(gpu.idle_hours),
+                        money(gpu.price_per_gpu_hour),
+                        money(gpu.estimated_idle_cost),
+                    ]
+                    for gpu in report.gpus
+                ],
+            ),
+            "",
+            f"## {t(language, 'telemetry_gaps')}",
+            "",
+        ]
+    )
+    gaps = report.telemetry_gaps or [t(language, "no_telemetry_gaps")]
+    lines.extend(f"- {item}" for item in gaps)
+    lines.append("")
+    return "\n".join(lines)
+
+
+def markdown_table(headers: list[str], rows: list[list[str]]) -> str:
+    if not rows:
+        rows = [["n/a"] + [""] * (len(headers) - 1)]
+    table = [
+        "| " + " | ".join(markdown_cell(header) for header in headers) + " |",
+        "| " + " | ".join("---" for _ in headers) + " |",
+    ]
+    for row in rows:
+        padded = row + [""] * (len(headers) - len(row))
+        table.append(
+            "| " + " | ".join(markdown_cell(cell) for cell in padded[: len(headers)]) + " |"
+        )
+    return "\n".join(table)
+
+
+def markdown_cell(value: object) -> str:
+    return str(value).replace("|", "\\|").replace("\n", " ")
 
 
 def pct(value: float) -> str:

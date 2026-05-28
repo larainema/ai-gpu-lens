@@ -1,0 +1,26 @@
+# Example ai-gpu-lens audit config.
+#
+# CLI flags override values in this file.
+
+from_file: examples/sample-prometheus.json
+hours: 4
+step: 1h
+language: en
+
+output: reports/sample.html
+json_output: reports/sample.json
+markdown_output: reports/sample.md
+
+price_per_gpu_hour: 2.50
+gpu_prices:
+  default: 2.50
+  H100: 4.25
+  L40S: 1.35
+
+idle_threshold: 5
+active_threshold: 10
+
+gpu_util_query: DCGM_FI_DEV_GPU_UTIL
+memory_used_query: DCGM_FI_DEV_FB_USED
+memory_total_query: DCGM_FI_DEV_FB_TOTAL
+kube_gpu_request_query: sum by (namespace, pod) (kube_pod_container_resource_requests{resource=~"nvidia_com_gpu|nvidia.com/gpu"})

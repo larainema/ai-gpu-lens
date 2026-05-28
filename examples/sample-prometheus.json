@@ -142,5 +142,52 @@
         [1779844800, "46068"]
       ]
     }
+  ],
+  "gpu_requests": [
+    {
+      "metric": {
+        "__name__": "kube_pod_container_resource_requests",
+        "namespace": "llm-prod",
+        "pod": "vllm-llama-0",
+        "resource": "nvidia_com_gpu"
+      },
+      "values": [
+        [1779830400, "1"],
+        [1779834000, "1"],
+        [1779837600, "1"],
+        [1779841200, "1"],
+        [1779844800, "1"]
+      ]
+    },
+    {
+      "metric": {
+        "__name__": "kube_pod_container_resource_requests",
+        "namespace": "notebooks",
+        "pod": "jupyter-alice-0",
+        "resource": "nvidia_com_gpu"
+      },
+      "values": [
+        [1779830400, "1"],
+        [1779834000, "1"],
+        [1779837600, "1"],
+        [1779841200, "1"],
+        [1779844800, "1"]
+      ]
+    },
+    {
+      "metric": {
+        "__name__": "kube_pod_container_resource_requests",
+        "namespace": "batch-train",
+        "pod": "trainer-20260528-0",
+        "resource": "nvidia_com_gpu"
+      },
+      "values": [
+        [1779830400, "1"],
+        [1779834000, "1"],
+        [1779837600, "1"],
+        [1779841200, "1"],
+        [1779844800, "1"]
+      ]
+    }
   ]
 }

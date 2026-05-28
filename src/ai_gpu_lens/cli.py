@@ -6,16 +6,25 @@ from typing import Sequence
 
 from . import __version__
 from .analyze import analyze_bundle
+from .config import (
+    ConfigError,
+    config_path,
+    get_config_value,
+    load_config,
+    normalize_gpu_prices,
+    parse_gpu_prices,
+)
 from .i18n import SUPPORTED_LANGUAGES, normalize_language, t
 from .prometheus import (
     DEFAULT_GPU_UTIL_QUERY,
+    DEFAULT_KUBE_GPU_REQUEST_QUERY,
     DEFAULT_MEMORY_TOTAL_QUERY,
     DEFAULT_MEMORY_USED_QUERY,
     PrometheusError,
     collect_bundle,
     load_bundle,
 )
-from .report import write_html_report, write_json_report
+from .report import write_html_report, write_json_report, write_markdown_report
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -30,7 +39,12 @@ def build_parser() -> argparse.ArgumentParser:
         "audit",
         help="Generate an HTML/JSON audit report.",
     )
-    source = audit.add_mutually_exclusive_group(required=True)
+    audit.add_argument(
+        "--config",
+        type=Path,
+        help="Optional ai-gpu-lens YAML/JSON config file.",
+    )
+    source = audit.add_mutually_exclusive_group()
     source.add_argument(
         "--prometheus-url",
         help="Prometheus base URL, for example http://localhost:9090.",
@@ -43,18 +57,18 @@ def build_parser() -> argparse.ArgumentParser:
     audit.add_argument(
         "--hours",
         type=float,
-        default=24.0,
+        default=None,
         help="Query window in hours. Default: 24.",
     )
     audit.add_argument(
         "--step",
-        default="5m",
+        default=None,
         help="Prometheus query_range step. Default: 5m.",
     )
     audit.add_argument(
         "--output",
         type=Path,
-        default=Path("reports/gpu-audit.html"),
+        default=None,
         help="HTML report path. Default: reports/gpu-audit.html.",
     )
     audit.add_argument(
@@ -65,46 +79,66 @@ def build_parser() -> argparse.ArgumentParser:
     audit.add_argument(
         "--price-per-gpu-hour",
         type=float,
-        default=0.0,
+        default=None,
         help="Cost used to estimate idle spend.",
+    )
+    audit.add_argument(
+        "--gpu-price",
+        action="append",
+        help="Override price for a GPU model, MODEL=PRICE. Can be repeated.",
     )
     audit.add_argument(
         "--idle-threshold",
         type=float,
-        default=5.0,
+        default=None,
         help="Utilization percent below which a sample is idle. Default: 5.",
     )
     audit.add_argument(
         "--active-threshold",
         type=float,
-        default=10.0,
+        default=None,
         help="Utilization percent at or above which a sample is active. Default: 10.",
     )
     audit.add_argument(
         "--gpu-util-query",
-        default=DEFAULT_GPU_UTIL_QUERY,
+        default=None,
         help="PromQL for GPU utilization. Default: DCGM_FI_DEV_GPU_UTIL.",
     )
     audit.add_argument(
         "--memory-used-query",
-        default=DEFAULT_MEMORY_USED_QUERY,
+        default=None,
         help="PromQL for framebuffer memory used. Default: DCGM_FI_DEV_FB_USED.",
     )
     audit.add_argument(
         "--memory-total-query",
-        default=DEFAULT_MEMORY_TOTAL_QUERY,
+        default=None,
         help="PromQL for framebuffer memory total. Default: DCGM_FI_DEV_FB_TOTAL.",
+    )
+    audit.add_argument(
+        "--kube-gpu-request-query",
+        default=None,
+        help="PromQL for kube-state-metrics GPU requests.",
+    )
+    audit.add_argument(
+        "--skip-kube-gpu-requests",
+        action="store_true",
+        help="Do not query kube-state-metrics GPU request data.",
     )
     audit.add_argument(
         "--language",
         choices=SUPPORTED_LANGUAGES,
-        default="en",
+        default=None,
         help="Report language: en or zh. Default: en.",
+    )
+    audit.add_argument(
+        "--markdown-output",
+        type=Path,
+        help="Optional Markdown report path.",
     )
     audit.add_argument(
         "--timeout",
         type=float,
-        default=20.0,
+        default=None,
         help="Prometheus HTTP timeout in seconds. Default: 20.",
     )
     audit.set_defaults(func=run_audit)
@@ -112,19 +146,27 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run_audit(args: argparse.Namespace) -> int:
-    language = normalize_language(args.language)
-    if args.from_file:
-        bundle = load_bundle(args.from_file)
+    try:
+        config = load_config(args.config)
+        options = resolve_options(args, config)
+    except ConfigError as exc:
+        print(f"error: {exc}")
+        return 2
+
+    language = normalize_language(options["language"])
+    if options["from_file"]:
+        bundle = load_bundle(options["from_file"])
     else:
         try:
             bundle = collect_bundle(
-                args.prometheus_url,
-                hours=args.hours,
-                step=args.step,
-                gpu_util_query=args.gpu_util_query,
-                memory_used_query=args.memory_used_query,
-                memory_total_query=args.memory_total_query,
-                timeout=args.timeout,
+                options["prometheus_url"],
+                hours=options["hours"],
+                step=options["step"],
+                gpu_util_query=options["gpu_util_query"],
+                memory_used_query=options["memory_used_query"],
+                memory_total_query=options["memory_total_query"],
+                kube_gpu_request_query=options["kube_gpu_request_query"],
+                timeout=options["timeout"],
             )
         except PrometheusError as exc:
             print(f"error: {exc}")
@@ -132,20 +174,25 @@ def run_audit(args: argparse.Namespace) -> int:
 
     report = analyze_bundle(
         bundle,
-        window_hours=args.hours,
-        step=args.step,
-        price_per_gpu_hour=args.price_per_gpu_hour,
-        idle_threshold=args.idle_threshold,
-        active_threshold=args.active_threshold,
+        window_hours=options["hours"],
+        step=options["step"],
+        price_per_gpu_hour=options["price_per_gpu_hour"],
+        gpu_prices=options["gpu_prices"],
+        idle_threshold=options["idle_threshold"],
+        active_threshold=options["active_threshold"],
         language=language,
     )
-    write_html_report(report, args.output)
-    if args.json_output:
-        write_json_report(report, args.json_output)
+    write_html_report(report, options["output"])
+    if options["json_output"]:
+        write_json_report(report, options["json_output"])
+    if options["markdown_output"]:
+        write_markdown_report(report, options["markdown_output"])
 
-    print(t(language, "wrote_html", path=args.output))
-    if args.json_output:
-        print(t(language, "json_written", path=args.json_output))
+    print(t(language, "wrote_html", path=options["output"]))
+    if options["json_output"]:
+        print(t(language, "json_written", path=options["json_output"]))
+    if options["markdown_output"]:
+        print(t(language, "wrote_markdown", path=options["markdown_output"]))
     print(
         t(
             language,
@@ -156,6 +203,79 @@ def run_audit(args: argparse.Namespace) -> int:
         )
     )
     return 0
+
+
+def resolve_options(args: argparse.Namespace, config: dict[str, object]) -> dict[str, object]:
+    from_file = args.from_file or config_path(get_config_value(config, "from_file"))
+    prometheus_url = args.prometheus_url or get_config_value(config, "prometheus_url")
+    if from_file and prometheus_url:
+        raise ConfigError("choose only one source: from_file or prometheus_url")
+    if not from_file and not prometheus_url:
+        raise ConfigError("provide --from-file, --prometheus-url, or set one in config")
+
+    gpu_prices = normalize_gpu_prices(get_config_value(config, "gpu_prices", {}))
+    gpu_prices.update(parse_gpu_prices(args.gpu_price))
+
+    kube_gpu_request_query = (
+        args.kube_gpu_request_query
+        if args.kube_gpu_request_query is not None
+        else get_config_value(
+            config,
+            "kube_gpu_request_query",
+            DEFAULT_KUBE_GPU_REQUEST_QUERY,
+        )
+    )
+    skip_requests = bool(
+        args.skip_kube_gpu_requests
+        or get_config_value(config, "skip_kube_gpu_requests", False)
+    )
+    if skip_requests:
+        kube_gpu_request_query = None
+
+    return {
+        "from_file": from_file,
+        "prometheus_url": prometheus_url,
+        "hours": float(args.hours or get_config_value(config, "hours", 24.0)),
+        "step": str(args.step or get_config_value(config, "step", "5m")),
+        "output": args.output
+        or config_path(get_config_value(config, "output"))
+        or Path("reports/gpu-audit.html"),
+        "json_output": args.json_output
+        or config_path(get_config_value(config, "json_output")),
+        "markdown_output": args.markdown_output
+        or config_path(get_config_value(config, "markdown_output")),
+        "price_per_gpu_hour": float(
+            args.price_per_gpu_hour
+            if args.price_per_gpu_hour is not None
+            else get_config_value(config, "price_per_gpu_hour", 0.0)
+        ),
+        "gpu_prices": gpu_prices,
+        "idle_threshold": float(
+            args.idle_threshold
+            if args.idle_threshold is not None
+            else get_config_value(config, "idle_threshold", 5.0)
+        ),
+        "active_threshold": float(
+            args.active_threshold
+            if args.active_threshold is not None
+            else get_config_value(config, "active_threshold", 10.0)
+        ),
+        "gpu_util_query": str(
+            args.gpu_util_query
+            or get_config_value(config, "gpu_util_query", DEFAULT_GPU_UTIL_QUERY)
+        ),
+        "memory_used_query": str(
+            args.memory_used_query
+            or get_config_value(config, "memory_used_query", DEFAULT_MEMORY_USED_QUERY)
+        ),
+        "memory_total_query": str(
+            args.memory_total_query
+            or get_config_value(config, "memory_total_query", DEFAULT_MEMORY_TOTAL_QUERY)
+        ),
+        "kube_gpu_request_query": kube_gpu_request_query,
+        "language": str(args.language or get_config_value(config, "language", "en")),
+        "timeout": float(args.timeout or get_config_value(config, "timeout", 20.0)),
+    }
 
 
 def main(argv: Sequence[str] | None = None) -> int:
