@@ -19,6 +19,13 @@ from .config import (
     normalize_gpu_prices,
     parse_gpu_prices,
 )
+from .compare import (
+    build_comparison,
+    load_audit_report,
+    write_comparison_html,
+    write_comparison_json,
+    write_comparison_markdown,
+)
 from .i18n import SUPPORTED_LANGUAGES, normalize_language, t
 from .doctor import render_doctor_text, run_doctor
 from .model import AuditReport
@@ -323,6 +330,46 @@ def build_parser() -> argparse.ArgumentParser:
         help="Environment variable containing a Bearer token.",
     )
     bundle.set_defaults(func=run_bundle)
+
+    compare = subparsers.add_parser(
+        "compare",
+        help="Compare two audit JSON reports.",
+    )
+    compare.add_argument(
+        "--before",
+        type=Path,
+        required=True,
+        help="Baseline audit JSON report.",
+    )
+    compare.add_argument(
+        "--after",
+        type=Path,
+        required=True,
+        help="Follow-up audit JSON report.",
+    )
+    compare.add_argument(
+        "--output",
+        type=Path,
+        default=Path("reports/gpu-comparison.html"),
+        help="HTML comparison report path.",
+    )
+    compare.add_argument(
+        "--json-output",
+        type=Path,
+        help="Optional JSON comparison report path.",
+    )
+    compare.add_argument(
+        "--markdown-output",
+        type=Path,
+        help="Optional Markdown comparison report path.",
+    )
+    compare.add_argument(
+        "--language",
+        choices=SUPPORTED_LANGUAGES,
+        default=None,
+        help="Report language: en or zh. Default: after report language or en.",
+    )
+    compare.set_defaults(func=run_compare)
 
     doctor = subparsers.add_parser(
         "doctor",
@@ -638,6 +685,34 @@ def archive_bundle(output_dir: Path, archive_path: Path) -> None:
             if path.resolve() == archive_resolved:
                 continue
             archive.write(path, path.relative_to(output_dir))
+
+
+def run_compare(args: argparse.Namespace) -> int:
+    try:
+        before = load_audit_report(args.before)
+        after = load_audit_report(args.after)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"error: {exc}")
+        return 2
+    try:
+        language = normalize_language(args.language or str(after.get("language", "en")))
+    except ValueError as exc:
+        print(f"error: {exc}")
+        return 2
+    report = build_comparison(before, after, language=language)
+    write_comparison_html(report, args.output)
+    if args.json_output:
+        write_comparison_json(report, args.json_output)
+    if args.markdown_output:
+        write_comparison_markdown(report, args.markdown_output)
+    print(f"wrote HTML comparison report: {args.output}")
+    if args.json_output:
+        print(f"wrote JSON comparison report: {args.json_output}")
+    if args.markdown_output:
+        print(f"wrote Markdown comparison report: {args.markdown_output}")
+    for item in report.summary:
+        print(f"- {item}")
+    return 0
 
 
 def resolve_options(args: argparse.Namespace, config: dict[str, object]) -> dict[str, object]:

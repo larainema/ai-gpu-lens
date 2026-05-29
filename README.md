@@ -4,7 +4,7 @@
 [![Release](https://github.com/larainema/ai-gpu-lens/actions/workflows/release.yml/badge.svg)](https://github.com/larainema/ai-gpu-lens/actions/workflows/release.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/larainema/ai-gpu-lens)](https://github.com/larainema/ai-gpu-lens/releases)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
-[![GHCR](https://img.shields.io/badge/ghcr.io-v0.2.0-blue)](https://github.com/larainema/ai-gpu-lens/pkgs/container/ai-gpu-lens)
+[![GHCR](https://img.shields.io/badge/ghcr.io-v0.3.0-blue)](https://github.com/larainema/ai-gpu-lens/pkgs/container/ai-gpu-lens)
 
 `ai-gpu-lens` is a small CLI for finding waste in Kubernetes GPU fleets.
 It reads DCGM exporter metrics from Prometheus and produces an HTML/JSON report
@@ -109,6 +109,22 @@ You can also use a config file:
 
 ```bash
 ./bin/ai-gpu-lens bundle --config examples/bundle.yaml
+```
+
+## Compare audit reports
+
+Use `compare` after a remediation pass to show what improved, what regressed,
+and which telemetry gaps changed. The inputs are audit JSON files from `audit`
+or `bundle`.
+
+```bash
+./bin/ai-gpu-lens compare \
+  --before reports/week-1/audit.json \
+  --after reports/week-2/audit.json \
+  --output reports/comparison.html \
+  --json-output reports/comparison.json \
+  --markdown-output reports/comparison.md \
+  --language zh
 ```
 
 ## Audit a Prometheus endpoint
@@ -216,7 +232,7 @@ docker run --rm \
 After a release is published, use the GHCR image directly:
 
 ```bash
-docker run --rm ghcr.io/larainema/ai-gpu-lens:v0.2.0 --help
+docker run --rm ghcr.io/larainema/ai-gpu-lens:v0.3.0 --help
 ```
 
 For config-driven audits:
@@ -225,7 +241,7 @@ For config-driven audits:
 docker run --rm \
   -v "$PWD/local:/configs:ro" \
   -v "$PWD/reports:/reports" \
-  ghcr.io/larainema/ai-gpu-lens:v0.2.0 audit \
+  ghcr.io/larainema/ai-gpu-lens:v0.3.0 audit \
   --config /configs/grafana.yaml
 ```
 
@@ -332,6 +348,7 @@ will be grouped under `unknown`.
 ```bash
 make test
 make sample
+make compare
 make docker-build
 ```
 
@@ -343,12 +360,12 @@ package, and smoke-tests the Docker image.
 Create a version tag to publish a GitHub Release and GHCR image:
 
 ```bash
-git tag -a v0.2.0 -m "v0.2.0"
-git push origin v0.2.0
+git tag -a v0.3.0 -m "v0.3.0"
+git push origin v0.3.0
 ```
 
 The release workflow uploads the Python wheel/source distribution to the GitHub
-Release and pushes `ghcr.io/larainema/ai-gpu-lens:v0.2.0`.
+Release and pushes `ghcr.io/larainema/ai-gpu-lens:v0.3.0`.
 
 ## License
 
@@ -358,6 +375,5 @@ This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE).
 
 - More precise GPU allocation accounting from kube-state-metrics
 - Prometheus recording-rule recommendations
-- Markdown export for customer-facing audit reports
 - Helm chart for an in-cluster scheduled audit job
 - Grafana dashboard JSON export

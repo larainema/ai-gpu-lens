@@ -48,6 +48,16 @@ jobs:
             --price-per-gpu-hour 2.50 \
             --language zh
 
+      - name: Generate sample comparison
+        run: |
+          ./bin/ai-gpu-lens compare \
+            --before reports/sample.json \
+            --after reports/sample-delivery/audit.json \
+            --output reports/sample-comparison.html \
+            --json-output reports/sample-comparison.json \
+            --markdown-output reports/sample-comparison.md \
+            --language zh
+
   package:
     name: Package
     runs-on: ubuntu-latest
@@ -79,6 +89,12 @@ jobs:
             --name sample-delivery \
             --output-dir /tmp/sample-delivery \
             --archive /tmp/sample-delivery.zip
+          ai-gpu-lens compare \
+            --before /tmp/sample.json \
+            --after /tmp/sample-delivery/audit.json \
+            --output /tmp/sample-comparison.html \
+            --json-output /tmp/sample-comparison.json \
+            --markdown-output /tmp/sample-comparison.md
 
   docker:
     name: Docker
@@ -93,13 +109,20 @@ jobs:
       - name: Smoke test image
         run: |
           docker run --rm ai-gpu-lens:ci --help
-          docker run --rm ai-gpu-lens:ci audit \
+          tmpdir="$(mktemp -d)"
+          docker run --rm -v "$tmpdir:/out" ai-gpu-lens:ci audit \
             --from-file examples/sample-prometheus.json \
-            --output /tmp/sample.html \
-            --json-output /tmp/sample.json \
-            --markdown-output /tmp/sample.md
-          docker run --rm ai-gpu-lens:ci bundle \
+            --output /out/sample.html \
+            --json-output /out/sample.json \
+            --markdown-output /out/sample.md
+          docker run --rm -v "$tmpdir:/out" ai-gpu-lens:ci bundle \
             --from-file examples/sample-prometheus.json \
             --name sample-delivery \
-            --output-dir /tmp/sample-delivery \
-            --archive /tmp/sample-delivery.zip
+            --output-dir /out/sample-delivery \
+            --archive /out/sample-delivery.zip
+          docker run --rm -v "$tmpdir:/out" ai-gpu-lens:ci compare \
+            --before /out/sample.json \
+            --after /out/sample-delivery/audit.json \
+            --output /out/sample-comparison.html \
+            --json-output /out/sample-comparison.json \
+            --markdown-output /out/sample-comparison.md

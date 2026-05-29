@@ -32,13 +32,13 @@ Open `reports/sample.html` in a browser. The report includes:
 ## 2. Use The Released Container
 
 ```bash
-docker run --rm ghcr.io/larainema/ai-gpu-lens:v0.2.0 --help
+docker run --rm ghcr.io/larainema/ai-gpu-lens:v0.3.0 --help
 ```
 
 Run the bundled sample inside the image:
 
 ```bash
-docker run --rm ghcr.io/larainema/ai-gpu-lens:v0.2.0 audit \
+docker run --rm ghcr.io/larainema/ai-gpu-lens:v0.3.0 audit \
   --from-file examples/sample-prometheus.json \
   --output /tmp/sample.html \
   --json-output /tmp/sample.json \
@@ -53,7 +53,7 @@ mkdir -p local reports
 docker run --rm \
   -v "$PWD/local:/configs:ro" \
   -v "$PWD/reports:/reports" \
-  ghcr.io/larainema/ai-gpu-lens:v0.2.0 audit \
+  ghcr.io/larainema/ai-gpu-lens:v0.3.0 audit \
   --config /configs/grafana.yaml
 ```
 
@@ -126,10 +126,30 @@ The bundle contains:
 - `README.md`
 - a zip archive, unless `--no-archive` is set
 
+## 7. Compare Two Audits
+
+After a remediation pass, compare the baseline audit JSON with the follow-up
+audit JSON:
+
+```bash
+./bin/ai-gpu-lens compare \
+  --before reports/week-1/audit.json \
+  --after reports/week-2/audit.json \
+  --output reports/comparison.html \
+  --json-output reports/comparison.json \
+  --markdown-output reports/comparison.md \
+  --language zh
+```
+
+Use the comparison report to review idle cost movement, over-requested GPU hour
+changes, improved/regressed namespaces, improved/regressed workloads, and
+telemetry gaps.
+
 ## 中文速记
 
 - 先用 sample 跑通：`./bin/ai-gpu-lens audit --from-file examples/sample-prometheus.json ...`
 - 真实环境先跑 `doctor`，确认 DCGM、kube-state-metrics、workload labels 是否齐全。
 - 初测用 24 小时窗口，正式审计用 7 天窗口。
 - 要交付给别人时用 `bundle` 生成目录和 zip。
+- 整改后用 `compare` 对比基线和复测 JSON，确认节省与回归。
 - 环境配置放 `local/`，报告放 `reports/`，两者都不要提交到 public repo。

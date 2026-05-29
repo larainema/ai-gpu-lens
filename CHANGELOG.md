@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.3.0 - 2026-05-29
+
+- Add `ai-gpu-lens compare` for before/after audit JSON reports.
+- Generate HTML, Markdown, and JSON comparison outputs.
+- Highlight core metric deltas, improved/regressed namespaces and workloads, and telemetry gap changes.
+- Add comparison examples, Makefile target, and CI/package/Docker smoke tests.
+
 ## v0.2.0 - 2026-05-29
 
 - Add `ai-gpu-lens bundle` for shareable audit delivery packages.

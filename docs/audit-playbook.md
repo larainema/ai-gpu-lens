@@ -124,9 +124,21 @@ delivery package.
 After remediation:
 
 - rerun the same audit window length
-- compare idle GPU hours and over-requested GPU hours
+- compare idle GPU hours, over-requested GPU hours, and telemetry gaps
 - keep notes about workload changes that explain metric movement
 - avoid comparing a weekday-only audit to a weekend-heavy audit
+
+Use `compare` to produce a follow-up report:
+
+```bash
+ai-gpu-lens compare \
+  --before reports/customer-week-1/audit.json \
+  --after reports/customer-week-2/audit.json \
+  --output reports/customer-comparison.html \
+  --json-output reports/customer-comparison.json \
+  --markdown-output reports/customer-comparison.md \
+  --language zh
+```
 
 ## 中文速记
 
@@ -135,3 +147,4 @@ After remediation:
 - 24 小时适合冒烟测试，7 天适合正式审计。
 - 报告中的 action item 是 backlog 起点，需要结合 workload owner 做确认。
 - 交付物最好包括 HTML、Markdown、JSON 和一份人工总结。
+- 整改后用 `compare` 生成前后对比，重点看节省、回归和遥测缺口变化。
