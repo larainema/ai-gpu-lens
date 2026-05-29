@@ -26,6 +26,14 @@ from .compare import (
     write_comparison_json,
     write_comparison_markdown,
 )
+from .dashboard import (
+    DEFAULT_DASHBOARD_TITLE,
+    DEFAULT_DASHBOARD_UID,
+    DEFAULT_DATASOURCE_UID,
+    DEFAULT_MEMORY_TOTAL_OR_FALLBACK_QUERY,
+    build_grafana_dashboard,
+    write_dashboard_json,
+)
 from .i18n import SUPPORTED_LANGUAGES, normalize_language, t
 from .doctor import render_doctor_text, run_doctor
 from .model import AuditReport
@@ -371,6 +379,79 @@ def build_parser() -> argparse.ArgumentParser:
     )
     compare.set_defaults(func=run_compare)
 
+    dashboard = subparsers.add_parser(
+        "dashboard",
+        help="Generate an importable Grafana dashboard JSON file.",
+    )
+    dashboard.add_argument(
+        "--config",
+        type=Path,
+        help="Optional ai-gpu-lens YAML/JSON config file.",
+    )
+    dashboard.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Dashboard JSON path. Default: reports/ai-gpu-lens-dashboard.json.",
+    )
+    dashboard.add_argument(
+        "--title",
+        default=None,
+        help=f"Grafana dashboard title. Default: {DEFAULT_DASHBOARD_TITLE}.",
+    )
+    dashboard.add_argument(
+        "--uid",
+        default=None,
+        help=f"Grafana dashboard UID. Default: {DEFAULT_DASHBOARD_UID}.",
+    )
+    dashboard.add_argument(
+        "--datasource-uid",
+        default=None,
+        help=(
+            "Prometheus datasource UID. Default prompts for a datasource on "
+            "Grafana import."
+        ),
+    )
+    dashboard.add_argument(
+        "--time-from",
+        default=None,
+        help="Default dashboard time range start. Default: now-24h.",
+    )
+    dashboard.add_argument(
+        "--refresh",
+        default=None,
+        help="Default dashboard refresh interval. Default: 1m.",
+    )
+    dashboard.add_argument(
+        "--gpu-util-query",
+        default=None,
+        help="PromQL metric/expression for GPU utilization.",
+    )
+    dashboard.add_argument(
+        "--memory-used-query",
+        default=None,
+        help="PromQL metric/expression for framebuffer memory used.",
+    )
+    dashboard.add_argument(
+        "--memory-total-query",
+        default=None,
+        help=(
+            "PromQL metric/expression for framebuffer memory total. Default "
+            "uses DCGM_FI_DEV_FB_TOTAL with a used+free fallback."
+        ),
+    )
+    dashboard.add_argument(
+        "--kube-gpu-request-query",
+        default=None,
+        help="PromQL metric/expression for kube-state-metrics GPU requests.",
+    )
+    dashboard.add_argument(
+        "--skip-kube-gpu-requests",
+        action="store_true",
+        help="Do not include requested-GPU panels.",
+    )
+    dashboard.set_defaults(func=run_dashboard)
+
     doctor = subparsers.add_parser(
         "doctor",
         help="Check whether a Prometheus or Grafana datasource proxy is audit-ready.",
@@ -712,6 +793,72 @@ def run_compare(args: argparse.Namespace) -> int:
         print(f"wrote Markdown comparison report: {args.markdown_output}")
     for item in report.summary:
         print(f"- {item}")
+    return 0
+
+
+def run_dashboard(args: argparse.Namespace) -> int:
+    try:
+        config = load_config(args.config)
+    except ConfigError as exc:
+        print(f"error: {exc}")
+        return 2
+
+    kube_gpu_request_query = (
+        args.kube_gpu_request_query
+        if args.kube_gpu_request_query is not None
+        else get_config_value(
+            config,
+            "kube_gpu_request_query",
+            DEFAULT_KUBE_GPU_REQUEST_QUERY,
+        )
+    )
+    if bool(
+        args.skip_kube_gpu_requests
+        or get_config_value(config, "skip_kube_gpu_requests", False)
+    ):
+        kube_gpu_request_query = None
+
+    dashboard = build_grafana_dashboard(
+        title=str(
+            args.title
+            or get_config_value(config, "dashboard_title", DEFAULT_DASHBOARD_TITLE)
+        ),
+        uid=str(args.uid or get_config_value(config, "dashboard_uid", DEFAULT_DASHBOARD_UID)),
+        datasource_uid=str(
+            args.datasource_uid
+            or get_config_value(config, "dashboard_datasource_uid", DEFAULT_DATASOURCE_UID)
+        ),
+        gpu_util_query=str(
+            args.gpu_util_query
+            or get_config_value(config, "gpu_util_query", DEFAULT_GPU_UTIL_QUERY)
+        ),
+        memory_used_query=str(
+            args.memory_used_query
+            or get_config_value(config, "memory_used_query", DEFAULT_MEMORY_USED_QUERY)
+        ),
+        memory_total_query=str(
+            args.memory_total_query
+            or get_config_value(
+                config,
+                "dashboard_memory_total_query",
+                get_config_value(
+                    config,
+                    "memory_total_query",
+                    DEFAULT_MEMORY_TOTAL_OR_FALLBACK_QUERY,
+                ),
+            )
+        ),
+        kube_gpu_request_query=kube_gpu_request_query,
+        time_from=str(args.time_from or get_config_value(config, "dashboard_time_from", "now-24h")),
+        refresh=str(args.refresh or get_config_value(config, "dashboard_refresh", "1m")),
+    )
+    output = (
+        args.output
+        or config_path(get_config_value(config, "dashboard_output"))
+        or Path("reports/ai-gpu-lens-dashboard.json")
+    )
+    write_dashboard_json(dashboard, output)
+    print(f"wrote Grafana dashboard JSON: {output}")
     return 0
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.0 - 2026-05-29
+
+- Add `ai-gpu-lens dashboard` to generate importable Grafana dashboard JSON.
+- Include panels for fleet utilization, per-GPU utilization, framebuffer memory, requested GPUs, low-utilization devices, and metric coverage.
+- Support datasource UID, dashboard title/UID, time range, refresh interval, metric query overrides, and config-driven dashboard generation.
+- Add dashboard documentation, Makefile target, and CI/package/Docker smoke tests.
+
 ## v0.3.0 - 2026-05-29
 
 - Add `ai-gpu-lens compare` for before/after audit JSON reports.

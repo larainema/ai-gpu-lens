@@ -102,6 +102,14 @@ ai-gpu-lens doctor --config local/grafana.yaml
 ai-gpu-lens audit --config local/grafana.yaml
 ```
 
+To create an importable Grafana dashboard for the same datasource:
+
+```bash
+ai-gpu-lens dashboard \
+  --config local/grafana.yaml \
+  --output reports/grafana-dashboard.json
+```
+
 ## Preflight Checklist
 
 Run `doctor` before `audit`. A useful Grafana-backed audit should have:

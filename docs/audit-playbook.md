@@ -96,6 +96,7 @@ A useful delivery package includes:
 - HTML report for exploration
 - Markdown report for notes
 - JSON report for automation or tracking
+- optional Grafana dashboard JSON for ongoing visibility
 - short written summary of top findings
 - remediation backlog with owner, risk, and expected savings
 
@@ -118,6 +119,15 @@ ai-gpu-lens bundle \
 For live Prometheus or Grafana endpoints, the bundle includes `doctor.json` and
 `doctor.txt`. Use `--skip-doctor` if you do not want preflight details in the
 delivery package.
+
+If the customer wants continuous monitoring after the audit, include a Grafana
+dashboard JSON:
+
+```bash
+ai-gpu-lens dashboard \
+  --config local/customer-grafana.yaml \
+  --output reports/customer-gpu-dashboard.json
+```
 
 ## 8. Follow-Up
 
@@ -146,5 +156,5 @@ ai-gpu-lens compare \
 - 先跑 `doctor`，指标不全就不要直接承诺节省。
 - 24 小时适合冒烟测试，7 天适合正式审计。
 - 报告中的 action item 是 backlog 起点，需要结合 workload owner 做确认。
-- 交付物最好包括 HTML、Markdown、JSON 和一份人工总结。
+- 交付物最好包括 HTML、Markdown、JSON、可选 Grafana dashboard 和一份人工总结。
 - 整改后用 `compare` 生成前后对比，重点看节省、回归和遥测缺口变化。

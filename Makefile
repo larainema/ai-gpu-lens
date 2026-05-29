@@ -1,4 +1,4 @@
-.PHONY: test sample bundle compare docker-build docker-sample
+.PHONY: test sample bundle compare dashboard docker-build docker-sample
 
 test:
 	python3 -m unittest discover -s tests
@@ -29,6 +29,10 @@ compare: sample bundle
 		--json-output reports/sample-comparison.json \
 		--markdown-output reports/sample-comparison.md \
 		--language zh
+
+dashboard:
+	./bin/ai-gpu-lens dashboard \
+		--output reports/ai-gpu-lens-dashboard.json
 
 docker-build:
 	docker build -t ai-gpu-lens:local .

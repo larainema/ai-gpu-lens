@@ -58,6 +58,11 @@ jobs:
             --markdown-output reports/sample-comparison.md \
             --language zh
 
+      - name: Generate sample Grafana dashboard
+        run: |
+          ./bin/ai-gpu-lens dashboard \
+            --output reports/ai-gpu-lens-dashboard.json
+
   package:
     name: Package
     runs-on: ubuntu-latest
@@ -95,6 +100,8 @@ jobs:
             --output /tmp/sample-comparison.html \
             --json-output /tmp/sample-comparison.json \
             --markdown-output /tmp/sample-comparison.md
+          ai-gpu-lens dashboard \
+            --output /tmp/ai-gpu-lens-dashboard.json
 
   docker:
     name: Docker
@@ -126,3 +133,5 @@ jobs:
             --output /out/sample-comparison.html \
             --json-output /out/sample-comparison.json \
             --markdown-output /out/sample-comparison.md
+          docker run --rm -v "$tmpdir:/out" ai-gpu-lens:ci dashboard \
+            --output /out/ai-gpu-lens-dashboard.json
