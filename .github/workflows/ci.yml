@@ -63,6 +63,18 @@ jobs:
           ./bin/ai-gpu-lens dashboard \
             --output reports/ai-gpu-lens-dashboard.json
 
+      - name: Generate redacted sample artifacts
+        run: |
+          ./bin/ai-gpu-lens redact \
+            --input reports/sample.json \
+            --output reports/sample-redacted.json \
+            --html-output reports/sample-redacted.html \
+            --markdown-output reports/sample-redacted.md \
+            --case-study-output reports/sample-case-study.md \
+            --title "Anonymized GPU Audit Case Study" \
+            --cluster-name demo-cluster \
+            --language en
+
   package:
     name: Package
     runs-on: ubuntu-latest
@@ -102,6 +114,12 @@ jobs:
             --markdown-output /tmp/sample-comparison.md
           ai-gpu-lens dashboard \
             --output /tmp/ai-gpu-lens-dashboard.json
+          ai-gpu-lens redact \
+            --input /tmp/sample.json \
+            --output /tmp/sample-redacted.json \
+            --html-output /tmp/sample-redacted.html \
+            --markdown-output /tmp/sample-redacted.md \
+            --case-study-output /tmp/sample-case-study.md
 
   docker:
     name: Docker
@@ -135,6 +153,12 @@ jobs:
             --markdown-output /out/sample-comparison.md
           docker run --rm -v "$tmpdir:/out" ai-gpu-lens:ci dashboard \
             --output /out/ai-gpu-lens-dashboard.json
+          docker run --rm -v "$tmpdir:/out" ai-gpu-lens:ci redact \
+            --input /out/sample.json \
+            --output /out/sample-redacted.json \
+            --html-output /out/sample-redacted.html \
+            --markdown-output /out/sample-redacted.md \
+            --case-study-output /out/sample-case-study.md
 
   chart:
     name: Helm chart

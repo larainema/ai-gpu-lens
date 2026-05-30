@@ -98,6 +98,7 @@ A useful delivery package includes:
 - JSON report for automation or tracking
 - optional Grafana dashboard JSON for ongoing visibility
 - optional scheduled Helm deployment for recurring audits
+- optional redacted public demo or case study
 - short written summary of top findings
 - remediation backlog with owner, risk, and expected savings
 
@@ -140,6 +141,19 @@ helm upgrade --install customer-gpu-audit charts/ai-gpu-lens \
   --values local/customer-helm-values.yaml
 ```
 
+For public sharing, generate redacted artifacts and review them before
+publishing:
+
+```bash
+ai-gpu-lens redact \
+  --input reports/customer-gpu-audit/audit.json \
+  --output reports/customer-gpu-audit/audit.redacted.json \
+  --html-output reports/customer-gpu-audit/audit.redacted.html \
+  --markdown-output reports/customer-gpu-audit/audit.redacted.md \
+  --case-study-output reports/customer-gpu-audit/case-study.md \
+  --cluster-name demo-cluster
+```
+
 ## 8. Follow-Up
 
 After remediation:
@@ -167,5 +181,5 @@ ai-gpu-lens compare \
 - 先跑 `doctor`，指标不全就不要直接承诺节省。
 - 24 小时适合冒烟测试，7 天适合正式审计。
 - 报告中的 action item 是 backlog 起点，需要结合 workload owner 做确认。
-- 交付物最好包括 HTML、Markdown、JSON、可选 Grafana dashboard、可选定期审计 CronJob 和一份人工总结。
+- 交付物最好包括 HTML、Markdown、JSON、可选 Grafana dashboard、可选定期审计 CronJob、可选脱敏案例和一份人工总结。
 - 整改后用 `compare` 生成前后对比，重点看节省、回归和遥测缺口变化。

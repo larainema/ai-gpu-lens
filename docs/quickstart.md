@@ -32,13 +32,13 @@ Open `reports/sample.html` in a browser. The report includes:
 ## 2. Use The Released Container
 
 ```bash
-docker run --rm ghcr.io/larainema/ai-gpu-lens:v0.5.0 --help
+docker run --rm ghcr.io/larainema/ai-gpu-lens:v0.6.0 --help
 ```
 
 Run the bundled sample inside the image:
 
 ```bash
-docker run --rm ghcr.io/larainema/ai-gpu-lens:v0.5.0 audit \
+docker run --rm ghcr.io/larainema/ai-gpu-lens:v0.6.0 audit \
   --from-file examples/sample-prometheus.json \
   --output /tmp/sample.html \
   --json-output /tmp/sample.json \
@@ -53,7 +53,7 @@ mkdir -p local reports
 docker run --rm \
   -v "$PWD/local:/configs:ro" \
   -v "$PWD/reports:/reports" \
-  ghcr.io/larainema/ai-gpu-lens:v0.5.0 audit \
+  ghcr.io/larainema/ai-gpu-lens:v0.6.0 audit \
   --config /configs/grafana.yaml
 ```
 
@@ -184,6 +184,22 @@ helm upgrade --install gpu-audit charts/ai-gpu-lens \
 See [Helm chart](helm-chart.md) for Grafana Secret examples and report
 retrieval.
 
+## 10. Redact For Public Sharing
+
+Generate public-safe artifacts from an audit JSON:
+
+```bash
+./bin/ai-gpu-lens redact \
+  --input reports/gpu-audit.json \
+  --output reports/gpu-audit.redacted.json \
+  --html-output reports/gpu-audit.redacted.html \
+  --markdown-output reports/gpu-audit.redacted.md \
+  --case-study-output reports/gpu-audit-case-study.md \
+  --cluster-name demo-cluster
+```
+
+Review the redacted output before sharing. See [Redaction](redaction.md).
+
 ## 中文速记
 
 - 先用 sample 跑通：`./bin/ai-gpu-lens audit --from-file examples/sample-prometheus.json ...`
@@ -193,4 +209,5 @@ retrieval.
 - 整改后用 `compare` 对比基线和复测 JSON，确认节省与回归。
 - 需要持续可视化时用 `dashboard` 生成 Grafana JSON 后导入。
 - 需要定期审计时用 Helm chart 部署只读 CronJob。
+- 需要公开展示时先用 `redact` 生成脱敏材料。
 - 环境配置放 `local/`，报告放 `reports/`，两者都不要提交到 public repo。

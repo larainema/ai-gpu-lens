@@ -47,6 +47,14 @@ from .prometheus import (
     collect_bundle,
     load_bundle,
 )
+from .redact import (
+    audit_report_from_mapping,
+    is_audit_report,
+    load_json_report,
+    redact_report,
+    render_case_study,
+    write_json,
+)
 from .report import write_html_report, write_json_report, write_markdown_report
 
 
@@ -451,6 +459,55 @@ def build_parser() -> argparse.ArgumentParser:
         help="Do not include requested-GPU panels.",
     )
     dashboard.set_defaults(func=run_dashboard)
+
+    redact = subparsers.add_parser(
+        "redact",
+        help="Redact sensitive identifiers from report JSON.",
+    )
+    redact.add_argument(
+        "--input",
+        type=Path,
+        required=True,
+        help="Input JSON report path.",
+    )
+    redact.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="Redacted JSON report path.",
+    )
+    redact.add_argument(
+        "--html-output",
+        type=Path,
+        help="Optional redacted HTML audit report path.",
+    )
+    redact.add_argument(
+        "--markdown-output",
+        type=Path,
+        help="Optional redacted Markdown audit report path.",
+    )
+    redact.add_argument(
+        "--case-study-output",
+        type=Path,
+        help="Optional public case study Markdown path for audit reports.",
+    )
+    redact.add_argument(
+        "--title",
+        default="Anonymized GPU Audit Case Study",
+        help="Case study title.",
+    )
+    redact.add_argument(
+        "--cluster-name",
+        default="anonymized-cluster",
+        help="Public cluster name used in the case study.",
+    )
+    redact.add_argument(
+        "--language",
+        choices=SUPPORTED_LANGUAGES,
+        default=None,
+        help="Output language for rendered audit/case-study artifacts.",
+    )
+    redact.set_defaults(func=run_redact)
 
     doctor = subparsers.add_parser(
         "doctor",
@@ -859,6 +916,49 @@ def run_dashboard(args: argparse.Namespace) -> int:
     )
     write_dashboard_json(dashboard, output)
     print(f"wrote Grafana dashboard JSON: {output}")
+    return 0
+
+
+def run_redact(args: argparse.Namespace) -> int:
+    try:
+        payload = load_json_report(args.input)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"error: {exc}")
+        return 2
+
+    redacted, _redactions = redact_report(payload)
+    try:
+        language = normalize_language(args.language or str(redacted.get("language", "en")))
+    except ValueError as exc:
+        print(f"error: {exc}")
+        return 2
+    redacted["language"] = language
+    write_json(redacted, args.output)
+    print(f"wrote redacted JSON report: {args.output}")
+
+    if args.html_output or args.markdown_output or args.case_study_output:
+        if not is_audit_report(redacted):
+            print("error: HTML, Markdown, and case-study outputs require an audit JSON report")
+            return 2
+        audit_report = audit_report_from_mapping(redacted)
+        if args.html_output:
+            write_html_report(audit_report, args.html_output)
+            print(f"wrote redacted HTML report: {args.html_output}")
+        if args.markdown_output:
+            write_markdown_report(audit_report, args.markdown_output)
+            print(f"wrote redacted Markdown report: {args.markdown_output}")
+        if args.case_study_output:
+            args.case_study_output.parent.mkdir(parents=True, exist_ok=True)
+            args.case_study_output.write_text(
+                render_case_study(
+                    redacted,
+                    title=args.title,
+                    cluster_name=args.cluster_name,
+                    language=language,
+                ),
+                encoding="utf-8",
+            )
+            print(f"wrote public case study: {args.case_study_output}")
     return 0
 
 

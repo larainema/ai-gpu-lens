@@ -1,4 +1,4 @@
-.PHONY: test sample bundle compare dashboard chart docker-build docker-sample
+.PHONY: test sample bundle compare dashboard redact chart docker-build docker-sample
 
 test:
 	python3 -m unittest discover -s tests
@@ -33,6 +33,17 @@ compare: sample bundle
 dashboard:
 	./bin/ai-gpu-lens dashboard \
 		--output reports/ai-gpu-lens-dashboard.json
+
+redact: sample
+	./bin/ai-gpu-lens redact \
+		--input reports/sample.json \
+		--output reports/sample-redacted.json \
+		--html-output reports/sample-redacted.html \
+		--markdown-output reports/sample-redacted.md \
+		--case-study-output reports/sample-case-study.md \
+		--title "Anonymized GPU Audit Case Study" \
+		--cluster-name demo-cluster \
+		--language en
 
 chart:
 	helm lint charts/ai-gpu-lens

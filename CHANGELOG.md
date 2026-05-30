@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.6.0 - 2026-05-30
+
+- Add `ai-gpu-lens redact` for anonymizing audit and comparison JSON reports.
+- Generate redacted audit HTML/Markdown outputs and public case study Markdown from audit JSON.
+- Replace namespaces, workloads, nodes, GPU UUIDs, URLs, and embedded text references with deterministic aliases.
+- Add redaction documentation, sample public case study, Makefile target, and CI/package/Docker smoke tests.
+
 ## v0.5.0 - 2026-05-30
 
 - Add a Helm chart that runs `ai-gpu-lens bundle` as a read-only Kubernetes CronJob.
