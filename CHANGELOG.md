@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.8.0 - 2026-05-30
+
+- Add confidence levels to action items: high confidence, medium confidence, needs validation, telemetry first, and baseline.
+- Add structured evidence and validation guidance to audit JSON, HTML, Markdown, bundle README, and public case studies.
+- Avoid high-confidence workload recommendations when request data cannot be matched to observed utilization labels.
+- Document how to read confidence and evidence in the report guide.
+
 ## v0.7.0 - 2026-05-30
 
 - Add `ai-gpu-lens bundle --public` to generate private and public redacted delivery bundles in one run.

@@ -930,8 +930,9 @@ def render_bundle_readme(
     manifest: dict[str, object],
 ) -> str:
     action_items = "\n".join(
-        "- [{priority}] {target}: {action} (${savings:,.2f})".format(
+        "- [{priority} / {confidence}] {target}: {action} (${savings:,.2f})".format(
             priority=item.priority,
+            confidence=item.confidence or "n/a",
             target=item.target,
             action=item.action,
             savings=item.estimated_window_savings,
@@ -978,7 +979,10 @@ def render_public_bundle_readme(
     manifest: dict[str, object],
 ) -> str:
     files = "\n".join(f"- `{item}`" for item in manifest["files"])
-    actions = "\n".join(f"- {item.action}" for item in report.action_items[:5])
+    actions = "\n".join(
+        f"- [{item.confidence or 'n/a'}] {item.action}"
+        for item in report.action_items[:5]
+    )
     if not actions:
         actions = "- Validate a longer audit window before changing capacity."
     return f"""# {bundle_name}

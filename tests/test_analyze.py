@@ -81,10 +81,39 @@ class AnalyzeBundleTest(unittest.TestCase):
         )
         self.assertEqual(report.action_items[0].target, "notebooks/jupyter-0")
         self.assertAlmostEqual(report.action_items[0].estimated_window_savings, 2.0)
+        self.assertEqual(report.action_items[0].confidence, "High confidence")
+        self.assertTrue(report.action_items[0].evidence)
+        self.assertIn("Requested GPU hours", report.action_items[0].evidence[1])
+        self.assertIn("Confirm the workload owner", report.action_items[0].validation)
         self.assertIn(
             "Memory used metric is missing for one or more GPUs.",
             report.telemetry_gaps,
         )
+
+    def test_request_only_namespace_action_needs_validation(self) -> None:
+        bundle = MetricBundle(
+            gpu_requests=(
+                Series(
+                    metric={"namespace": "request-only", "pod": "worker-0"},
+                    values=((0, 4), (3600, 4)),
+                ),
+            )
+        )
+
+        report = analyze_bundle(
+            bundle,
+            window_hours=1.0,
+            step="1h",
+            price_per_gpu_hour=2.0,
+        )
+
+        self.assertEqual(report.action_items[0].target, "request-only")
+        self.assertEqual(report.action_items[0].confidence, "Needs validation")
+        self.assertIn(
+            "No GPU utilization series were attributed to this namespace",
+            " ".join(report.action_items[0].evidence),
+        )
+        self.assertIn("fix DCGM namespace/pod attribution", report.action_items[0].validation)
 
     def test_dedupes_duplicate_dcgm_series_by_physical_gpu(self) -> None:
         bundle = MetricBundle(

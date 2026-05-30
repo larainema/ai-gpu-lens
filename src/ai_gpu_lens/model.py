@@ -117,6 +117,9 @@ class ActionItem:
     target: str
     action: str
     estimated_window_savings: float = 0.0
+    confidence: str = ""
+    evidence: list[str] = field(default_factory=list)
+    validation: str = ""
 
 
 @dataclass

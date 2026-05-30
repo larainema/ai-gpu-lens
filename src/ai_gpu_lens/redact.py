@@ -306,7 +306,10 @@ def render_case_study_en(
         "## Recommended Follow-Up",
         "",
     ]
-    lines.extend(f"- {item.action}" for item in report.action_items[:5])
+    lines.extend(
+        f"- [{item.confidence or 'n/a'}] {item.action}"
+        for item in report.action_items[:5]
+    )
     if not report.action_items:
         lines.append("- Validate a longer audit window before changing capacity.")
     return "\n".join(lines) + "\n"
@@ -384,7 +387,10 @@ def render_case_study_zh(
         "## 建议后续动作",
         "",
     ]
-    lines.extend(f"- {item.action}" for item in report.action_items[:5])
+    lines.extend(
+        f"- [{item.confidence or 'n/a'}] {item.action}"
+        for item in report.action_items[:5]
+    )
     if not report.action_items:
         lines.append("- 在调整容量前，先用更长时间窗口复核。")
     return "\n".join(lines) + "\n"

@@ -53,9 +53,11 @@ def render_html(report: AuditReport) -> str:
         f"""
         <tr>
           <td>{escape(item.priority)}</td>
+          <td>{escape(item.confidence or t(language, "not_available"))}</td>
           <td>{escape(item.category)}</td>
           <td>{escape(item.target)}</td>
           <td class="action-cell">{escape(item.action)}</td>
+          <td class="action-cell">{action_evidence_html(item.evidence, item.validation, language)}</td>
           <td>{money(item.estimated_window_savings)}</td>
         </tr>
         """
@@ -349,9 +351,11 @@ def render_html(report: AuditReport) -> str:
         <thead>
           <tr>
             <th>{escape(t(language, "priority"))}</th>
+            <th>{escape(t(language, "confidence"))}</th>
             <th>{escape(t(language, "category"))}</th>
             <th>{escape(t(language, "target"))}</th>
             <th>{escape(t(language, "action"))}</th>
+            <th>{escape(t(language, "evidence"))}</th>
             <th>{escape(t(language, "estimated_savings"))}</th>
           </tr>
         </thead>
@@ -533,6 +537,7 @@ def render_markdown(report: AuditReport) -> str:
             markdown_table(
                 [
                     t(language, "priority"),
+                    t(language, "confidence"),
                     t(language, "category"),
                     t(language, "target"),
                     t(language, "action"),
@@ -541,6 +546,7 @@ def render_markdown(report: AuditReport) -> str:
                 [
                     [
                         item.priority,
+                        item.confidence or t(language, "not_available"),
                         item.category,
                         item.target,
                         item.action,
@@ -549,6 +555,14 @@ def render_markdown(report: AuditReport) -> str:
                     for item in report.action_items
                 ],
             ),
+            "",
+            f"## {t(language, 'action_evidence')}",
+            "",
+        ]
+    )
+    lines.extend(action_evidence_markdown(report))
+    lines.extend(
+        [
             "",
             f"## {t(language, 'recommendations')}",
             "",
@@ -799,6 +813,38 @@ def executive_summary_lines(report: AuditReport) -> list[str]:
             hours=num(over_requested_hours),
         ),
     ]
+
+
+def action_evidence_html(evidence: list[str], validation: str, language: str) -> str:
+    evidence_items = evidence or [t(language, "not_available")]
+    items = "\n".join(f"<li>{escape(item)}</li>" for item in evidence_items)
+    validation_html = ""
+    if validation:
+        validation_html = (
+            f"<p><strong>{escape(t(language, 'validation'))}:</strong> "
+            f"{escape(validation)}</p>"
+        )
+    return f"<ul>{items}</ul>{validation_html}"
+
+
+def action_evidence_markdown(report: AuditReport) -> list[str]:
+    lines: list[str] = []
+    for index, item in enumerate(report.action_items, start=1):
+        lines.extend(
+            [
+                f"### {index}. {markdown_cell(item.target)}",
+                "",
+                f"- {t(report.language, 'confidence')}: {item.confidence or t(report.language, 'not_available')}",
+            ]
+        )
+        for evidence in item.evidence or [t(report.language, "not_available")]:
+            lines.append(f"- {t(report.language, 'evidence')}: {evidence}")
+        if item.validation:
+            lines.append(f"- {t(report.language, 'validation')}: {item.validation}")
+        lines.append("")
+    if not lines:
+        lines.append(f"- {t(report.language, 'not_available')}")
+    return lines
 
 
 def markdown_table(headers: list[str], rows: list[list[str]]) -> str:

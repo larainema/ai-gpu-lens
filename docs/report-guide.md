@@ -21,6 +21,16 @@ backlog, not a full root-cause analysis.
 
 ![Action items screenshot](assets/action-items.png)
 
+Each action item includes a confidence level and evidence:
+
+- `High confidence`: workload-level request and utilization attribution match.
+- `Medium confidence`: direct signal exists, but ownership or attribution should
+  be checked before capacity changes.
+- `Needs validation`: request-side waste is visible, but utilization is not
+  attributed to the same namespace/workload.
+- `Telemetry first`: fix metric or label gaps before using the audit for
+  savings commitments.
+
 Typical categories:
 
 - `Right-sizing`: review GPU requests, replica counts, and workload sizing.
@@ -96,7 +106,7 @@ or contractual savings commitments.
 ## 中文速记
 
 - `执行摘要` 适合给老板或客户先看：多少 GPU、平均利用率、空闲/过度申请多少。
-- `行动清单` 是整改 backlog 的起点，不是完整 RCA。
+- `行动清单` 是整改 backlog 的起点，不是完整 RCA；优先看置信度和证据。
 - `空闲 GPU Top` 用来优先排查 notebook、训练任务挂起、调度碎片、数据加载瓶颈。
 - `过度申请` 是优先级信号，不等于可以立刻删除同等数量 GPU。
 - `遥测缺口` 说明归因可信度边界，做 chargeback 或自动降配前应先修。

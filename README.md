@@ -4,7 +4,7 @@
 [![Release](https://github.com/larainema/ai-gpu-lens/actions/workflows/release.yml/badge.svg)](https://github.com/larainema/ai-gpu-lens/actions/workflows/release.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/larainema/ai-gpu-lens)](https://github.com/larainema/ai-gpu-lens/releases)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
-[![GHCR](https://img.shields.io/badge/ghcr.io-v0.7.0-blue)](https://github.com/larainema/ai-gpu-lens/pkgs/container/ai-gpu-lens)
+[![GHCR](https://img.shields.io/badge/ghcr.io-v0.8.0-blue)](https://github.com/larainema/ai-gpu-lens/pkgs/container/ai-gpu-lens)
 
 `ai-gpu-lens` is a small CLI for finding waste in Kubernetes GPU fleets.
 It reads DCGM exporter metrics from Prometheus and produces an HTML/JSON report
@@ -312,7 +312,7 @@ docker run --rm \
 After a release is published, use the GHCR image directly:
 
 ```bash
-docker run --rm ghcr.io/larainema/ai-gpu-lens:v0.7.0 --help
+docker run --rm ghcr.io/larainema/ai-gpu-lens:v0.8.0 --help
 ```
 
 For config-driven audits:
@@ -321,7 +321,7 @@ For config-driven audits:
 docker run --rm \
   -v "$PWD/local:/configs:ro" \
   -v "$PWD/reports:/reports" \
-  ghcr.io/larainema/ai-gpu-lens:v0.7.0 audit \
+  ghcr.io/larainema/ai-gpu-lens:v0.8.0 audit \
   --config /configs/grafana.yaml
 ```
 
@@ -388,7 +388,8 @@ tokens to a public repository.
 - Per-model GPU price matching
 - kube-state-metrics requested GPU hours
 - Namespace-level utilized GPU-hour equivalents when Kubernetes labels exist
-- Executive summary and prioritized action items for a remediation backlog
+- Executive summary and prioritized action items with confidence, evidence,
+  and validation guidance for a remediation backlog
 - Physical GPU de-duplication when DCGM exporter emits repeated container
   series for the same GPU
 - Gaps in telemetry that make attribution weaker
@@ -403,7 +404,7 @@ tokens to a public repository.
 - 不同 GPU 型号的价格匹配
 - kube-state-metrics 中的 GPU 申请小时数
 - namespace 维度的 GPU 小时归因
-- 执行摘要和按优先级排序的行动清单，方便形成整改 backlog
+- 执行摘要和按优先级排序的行动清单，并带置信度、证据和验证动作
 - 针对同一物理 GPU 重复 DCGM 序列的去重
 - 影响成本归因准确性的遥测缺口
 - 下一轮审计可执行建议
@@ -443,13 +444,13 @@ package, and smoke-tests the Docker image.
 Create a version tag to publish a GitHub Release and GHCR image:
 
 ```bash
-git tag -a v0.7.0 -m "v0.7.0"
-git push origin v0.7.0
+git tag -a v0.8.0 -m "v0.8.0"
+git push origin v0.8.0
 ```
 
 The release workflow uploads the Python wheel/source distribution to the GitHub
 Release, uploads the packaged Helm chart, and pushes
-`ghcr.io/larainema/ai-gpu-lens:v0.7.0`.
+`ghcr.io/larainema/ai-gpu-lens:v0.8.0`.
 
 ## License
 

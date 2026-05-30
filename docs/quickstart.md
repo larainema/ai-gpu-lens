@@ -32,13 +32,13 @@ Open `reports/sample.html` in a browser. The report includes:
 ## 2. Use The Released Container
 
 ```bash
-docker run --rm ghcr.io/larainema/ai-gpu-lens:v0.7.0 --help
+docker run --rm ghcr.io/larainema/ai-gpu-lens:v0.8.0 --help
 ```
 
 Run the bundled sample inside the image:
 
 ```bash
-docker run --rm ghcr.io/larainema/ai-gpu-lens:v0.7.0 audit \
+docker run --rm ghcr.io/larainema/ai-gpu-lens:v0.8.0 audit \
   --from-file examples/sample-prometheus.json \
   --output /tmp/sample.html \
   --json-output /tmp/sample.json \
@@ -53,7 +53,7 @@ mkdir -p local reports
 docker run --rm \
   -v "$PWD/local:/configs:ro" \
   -v "$PWD/reports:/reports" \
-  ghcr.io/larainema/ai-gpu-lens:v0.7.0 audit \
+  ghcr.io/larainema/ai-gpu-lens:v0.8.0 audit \
   --config /configs/grafana.yaml
 ```
 

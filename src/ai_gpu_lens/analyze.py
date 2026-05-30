@@ -203,6 +203,8 @@ def analyze_bundle(
         namespaces,
         workload_requests,
         telemetry_gaps,
+        window_hours=window_hours,
+        step=step,
         language=language,
     )
 
@@ -284,10 +286,17 @@ def build_action_items(
     workload_requests: list[WorkloadRequestSummary],
     telemetry_gaps: set[str],
     *,
+    window_hours: float,
+    step: str,
     language: str = DEFAULT_LANGUAGE,
 ) -> list[ActionItem]:
     action_items: list[ActionItem] = []
-    workload_attribution_ok = not any(
+    observed_workloads = {
+        (gpu.namespace, gpu.pod)
+        for gpu in gpus
+        if gpu.namespace not in {UNKNOWN, "mixed"} and gpu.pod not in {UNKNOWN, "mixed"}
+    }
+    workload_attribution_ok = bool(gpus) and not any(
         gpu.source_series_count > 1
         or gpu.namespace in {UNKNOWN, "mixed"}
         or gpu.pod in {UNKNOWN, "mixed"}
@@ -305,7 +314,12 @@ def build_action_items(
         reverse=True,
     )
     if workload_attribution_ok:
-        for item in over_requested_workloads[:3]:
+        matched_workloads = [
+            item
+            for item in over_requested_workloads
+            if (item.namespace, item.pod) in observed_workloads
+        ]
+        for item in matched_workloads[:3]:
             action_items.append(
                 ActionItem(
                     priority=t(language, "priority_high"),
@@ -319,6 +333,14 @@ def build_action_items(
                         over=_fmt_hours(item.over_requested_gpu_hours),
                     ),
                     estimated_window_savings=item.estimated_over_request_cost,
+                    confidence=t(language, "confidence_high"),
+                    evidence=workload_evidence(
+                        item,
+                        window_hours=window_hours,
+                        step=step,
+                        language=language,
+                    ),
+                    validation=t(language, "validation_workload"),
                 )
             )
 
@@ -334,6 +356,16 @@ def build_action_items(
             reverse=True,
         )
         for item in over_requested_namespaces[:2]:
+            confidence = (
+                t(language, "confidence_medium")
+                if item.series_count > 0
+                else t(language, "confidence_needs_validation")
+            )
+            validation = (
+                t(language, "validation_namespace")
+                if item.series_count > 0
+                else t(language, "validation_namespace_missing_util")
+            )
             action_items.append(
                 ActionItem(
                     priority=t(language, "priority_high"),
@@ -347,6 +379,15 @@ def build_action_items(
                         over=_fmt_hours(item.over_requested_gpu_hours),
                     ),
                     estimated_window_savings=item.estimated_over_request_cost,
+                    confidence=confidence,
+                    evidence=namespace_evidence(
+                        item,
+                        telemetry_gaps,
+                        window_hours=window_hours,
+                        step=step,
+                        language=language,
+                    ),
+                    validation=validation,
                 )
             )
 
@@ -357,6 +398,13 @@ def build_action_items(
     )
     remaining_slots = max(0, 5 - len(action_items))
     for gpu in idle_gpus[: min(2, remaining_slots)]:
+        confidence = (
+            t(language, "confidence_high")
+            if gpu.source_series_count == 1
+            and gpu.namespace not in {UNKNOWN, "mixed"}
+            and gpu.pod not in {UNKNOWN, "mixed"}
+            else t(language, "confidence_medium")
+        )
         action_items.append(
             ActionItem(
                 priority=t(language, "priority_medium"),
@@ -371,6 +419,9 @@ def build_action_items(
                     pod=gpu.pod,
                 ),
                 estimated_window_savings=gpu.estimated_idle_cost,
+                confidence=confidence,
+                evidence=gpu_evidence(gpu, window_hours=window_hours, language=language),
+                validation=t(language, "validation_idle_gpu"),
             )
         )
 
@@ -386,6 +437,9 @@ def build_action_items(
                     "action_fix_telemetry",
                     gap=sorted(telemetry_gaps)[0],
                 ),
+                confidence=t(language, "confidence_telemetry_first"),
+                evidence=telemetry_evidence(telemetry_gaps, language=language),
+                validation=t(language, "validation_telemetry"),
             )
         )
 
@@ -396,9 +450,155 @@ def build_action_items(
                 category=t(language, "category_validation"),
                 target=t(language, "gpus"),
                 action=t(language, "action_validate_longer_window"),
+                confidence=t(language, "confidence_baseline"),
+                evidence=[
+                    t(
+                        language,
+                        "evidence_window",
+                        window=_fmt_hours(window_hours),
+                        step=step,
+                    ),
+                    t(language, "evidence_no_major_waste"),
+                ],
+                validation=t(language, "validation_baseline"),
             )
         )
     return action_items[:5]
+
+
+def workload_evidence(
+    item: WorkloadRequestSummary,
+    *,
+    window_hours: float,
+    step: str,
+    language: str,
+) -> list[str]:
+    return [
+        t(language, "evidence_window", window=_fmt_hours(window_hours), step=step),
+        t(
+            language,
+            "evidence_requested",
+            hours=_fmt_hours(item.requested_gpu_hours),
+            cost=_fmt_money(item.estimated_request_cost),
+        ),
+        t(
+            language,
+            "evidence_utilized",
+            hours=_fmt_hours(item.utilized_gpu_hour_equivalent),
+        ),
+        t(
+            language,
+            "evidence_over",
+            hours=_fmt_hours(item.over_requested_gpu_hours),
+            cost=_fmt_money(item.estimated_over_request_cost),
+        ),
+        t(language, "evidence_request_samples", samples=item.samples),
+        t(language, "evidence_workload_attribution"),
+    ]
+
+
+def namespace_evidence(
+    item: NamespaceSummary,
+    telemetry_gaps: set[str],
+    *,
+    window_hours: float,
+    step: str,
+    language: str,
+) -> list[str]:
+    evidence = [
+        t(language, "evidence_window", window=_fmt_hours(window_hours), step=step),
+        t(
+            language,
+            "evidence_requested",
+            hours=_fmt_hours(item.requested_gpu_hours),
+            cost=_fmt_money(item.estimated_request_cost),
+        ),
+        t(
+            language,
+            "evidence_utilized",
+            hours=_fmt_hours(item.utilized_gpu_hour_equivalent),
+        ),
+        t(
+            language,
+            "evidence_over",
+            hours=_fmt_hours(item.over_requested_gpu_hours),
+            cost=_fmt_money(item.estimated_over_request_cost),
+        ),
+    ]
+    if item.series_count:
+        evidence.append(
+            t(
+                language,
+                "evidence_namespace_util",
+                series=item.series_count,
+                avg_util=_fmt_pct(item.avg_utilization),
+            )
+        )
+    else:
+        evidence.append(t(language, "evidence_no_namespace_util"))
+    if telemetry_gaps:
+        evidence.append(
+            t(language, "evidence_telemetry_gap", gap=sorted(telemetry_gaps)[0])
+        )
+    evidence.append(t(language, "evidence_namespace_attribution_limited"))
+    return evidence
+
+
+def gpu_evidence(
+    gpu: GpuSummary,
+    *,
+    window_hours: float,
+    language: str,
+) -> list[str]:
+    evidence = [
+        t(
+            language,
+            "evidence_gpu_identity",
+            node=gpu.node,
+            index=gpu.index,
+            model=gpu.model,
+            namespace=gpu.namespace,
+            pod=gpu.pod,
+        ),
+        t(
+            language,
+            "evidence_gpu_utilization",
+            avg_util=_fmt_pct(gpu.avg_utilization),
+            max_util=_fmt_pct(gpu.max_utilization),
+            active_ratio=_fmt_pct(gpu.active_ratio * 100),
+        ),
+        t(
+            language,
+            "evidence_gpu_idle",
+            idle_hours=_fmt_hours(gpu.idle_hours),
+            observed_hours=_fmt_hours(gpu.observed_hours or window_hours),
+            cost=_fmt_money(gpu.estimated_idle_cost),
+        ),
+        t(language, "evidence_source_series", count=gpu.source_series_count),
+    ]
+    if gpu.avg_memory_percent is not None:
+        evidence.append(
+            t(
+                language,
+                "evidence_gpu_memory",
+                avg_mem=_fmt_pct(gpu.avg_memory_percent),
+                max_mem=_fmt_pct(gpu.max_memory_percent or 0.0),
+            )
+        )
+    return evidence
+
+
+def telemetry_evidence(
+    telemetry_gaps: set[str],
+    *,
+    language: str,
+) -> list[str]:
+    gaps = sorted(telemetry_gaps)
+    evidence = [
+        t(language, "evidence_telemetry_gap_count", count=len(gaps)),
+    ]
+    evidence.extend(t(language, "evidence_telemetry_gap", gap=gap) for gap in gaps[:3])
+    return evidence
 
 
 def _latest_series_by_gpu(series_list: tuple[Series, ...]) -> dict[str, Series]:
@@ -481,6 +681,10 @@ def _fmt_hours(value: float) -> str:
 
 def _fmt_pct(value: float) -> str:
     return f"{value:.1f}%"
+
+
+def _fmt_money(value: float) -> str:
+    return f"${value:,.2f}"
 
 
 def build_gpu_model_summaries(gpus: list[GpuSummary]) -> list[GpuModelSummary]:
