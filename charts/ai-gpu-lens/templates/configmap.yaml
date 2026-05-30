@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ai-gpu-lens.fullname" . }}-config
+  labels:
+    {{- include "ai-gpu-lens.labels" . | nindent 4 }}
+data:
+  ai-gpu-lens.yaml: |
+    prometheus_url: {{ required "config.prometheusUrl is required" .Values.config.prometheusUrl }}
+    hours: {{ .Values.config.hours }}
+    step: {{ .Values.config.step }}
+    language: {{ .Values.config.language }}
+    timeout: {{ .Values.config.timeout }}
+    price_per_gpu_hour: {{ .Values.config.pricePerGpuHour }}
+    idle_threshold: {{ .Values.config.idleThreshold }}
+    active_threshold: {{ .Values.config.activeThreshold }}
+    bundle_name: {{ .Values.config.bundleName }}
+    bundle_output_dir: {{ .Values.config.bundleOutputDir }}
+    bundle_archive: {{ .Values.config.bundleArchive }}
+    bundle_skip_doctor: {{ .Values.config.bundleSkipDoctor }}
+    bundle_no_archive: {{ .Values.config.bundleNoArchive }}
+    skip_kube_gpu_requests: {{ .Values.config.skipKubeGpuRequests }}
+    skip_memory_total_fallback: {{ .Values.config.skipMemoryTotalFallback }}
+    {{- if .Values.config.gpuUtilQuery }}
+    gpu_util_query: {{ .Values.config.gpuUtilQuery }}
+    {{- end }}
+    {{- if .Values.config.memoryUsedQuery }}
+    memory_used_query: {{ .Values.config.memoryUsedQuery }}
+    {{- end }}
+    {{- if .Values.config.memoryTotalQuery }}
+    memory_total_query: {{ .Values.config.memoryTotalQuery }}
+    {{- end }}
+    {{- if .Values.config.memoryTotalFallbackQuery }}
+    memory_total_fallback_query: {{ .Values.config.memoryTotalFallbackQuery }}
+    {{- end }}
+    {{- if .Values.config.kubeGpuRequestQuery }}
+    kube_gpu_request_query: {{ .Values.config.kubeGpuRequestQuery }}
+    {{- end }}
+    {{- if .Values.auth.basicAuth.username }}
+    basic_auth_user: {{ .Values.auth.basicAuth.username }}
+    basic_auth_password_env: {{ .Values.auth.basicAuth.passwordEnvName }}
+    {{- end }}
+    {{- if or .Values.auth.bearerToken.existingSecret .Values.auth.bearerToken.token }}
+    bearer_token_env: {{ .Values.auth.bearerToken.envName }}
+    {{- end }}
+    {{- if .Values.config.gpuPrices }}
+    gpu_prices:
+      {{- toYaml .Values.config.gpuPrices | nindent 6 }}
+    {{- else }}
+    gpu_prices: {}
+    {{- end }}

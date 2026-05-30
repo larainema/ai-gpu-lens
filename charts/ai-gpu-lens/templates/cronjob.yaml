@@ -1,0 +1,117 @@
+apiVersion: batch/v1
+kind: CronJob
+{{- if and .Values.auth.basicAuth.username (not .Values.auth.basicAuth.existingSecret) (not .Values.auth.basicAuth.password) }}
+{{- fail "auth.basicAuth.username requires auth.basicAuth.existingSecret or auth.basicAuth.password" }}
+{{- end }}
+metadata:
+  name: {{ include "ai-gpu-lens.fullname" . }}
+  labels:
+    {{- include "ai-gpu-lens.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.cron.schedule | quote }}
+  suspend: {{ .Values.cron.suspend }}
+  concurrencyPolicy: {{ .Values.cron.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.cron.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.cron.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.cron.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "ai-gpu-lens.selectorLabels" . | nindent 12 }}
+            {{- with .Values.podLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.podAnnotations }}
+          annotations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        spec:
+          serviceAccountName: {{ include "ai-gpu-lens.serviceAccountName" . }}
+          automountServiceAccountToken: false
+          restartPolicy: {{ .Values.cron.restartPolicy }}
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.podSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: ai-gpu-lens
+              image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "v%s" .Chart.AppVersion) }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              args:
+                - bundle
+                - --config
+                - /config/ai-gpu-lens.yaml
+                {{- with .Values.extraArgs }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
+              env:
+                - name: PYTHONDONTWRITEBYTECODE
+                  value: "1"
+                - name: PYTHONUNBUFFERED
+                  value: "1"
+                {{- if .Values.auth.basicAuth.username }}
+                - name: {{ .Values.auth.basicAuth.passwordEnvName }}
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ default (include "ai-gpu-lens.secretName" .) .Values.auth.basicAuth.existingSecret }}
+                      key: {{ .Values.auth.basicAuth.existingSecretKey }}
+                {{- end }}
+                {{- if or .Values.auth.bearerToken.existingSecret .Values.auth.bearerToken.token }}
+                - name: {{ .Values.auth.bearerToken.envName }}
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ default (include "ai-gpu-lens.secretName" .) .Values.auth.bearerToken.existingSecret }}
+                      key: {{ .Values.auth.bearerToken.existingSecretKey }}
+                {{- end }}
+                {{- with .Values.extraEnv }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
+              {{- with .Values.securityContext }}
+              securityContext:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              {{- with .Values.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              volumeMounts:
+                - name: config
+                  mountPath: /config
+                  readOnly: true
+                - name: reports
+                  mountPath: /reports
+                {{- with .Values.extraVolumeMounts }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
+          volumes:
+            - name: config
+              configMap:
+                name: {{ include "ai-gpu-lens.fullname" . }}-config
+            - name: reports
+              {{- if .Values.persistence.enabled }}
+              persistentVolumeClaim:
+                claimName: {{ default (printf "%s-reports" (include "ai-gpu-lens.fullname" .)) .Values.persistence.existingClaim }}
+              {{- else }}
+              emptyDir: {}
+              {{- end }}
+            {{- with .Values.extraVolumes }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}

@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.5.0 - 2026-05-30
+
+- Add a Helm chart that runs `ai-gpu-lens bundle` as a read-only Kubernetes CronJob.
+- Include ConfigMap, optional Secret, optional PVC, ServiceAccount, and hardened pod/container security defaults.
+- Support Grafana/Prometheus bearer token or Basic Auth credentials through Kubernetes Secrets.
+- Add Helm values example, chart documentation, CI chart validation, and release chart packaging.
+
 ## v0.4.0 - 2026-05-29
 
 - Add `ai-gpu-lens dashboard` to generate importable Grafana dashboard JSON.

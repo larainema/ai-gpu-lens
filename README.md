@@ -4,7 +4,7 @@
 [![Release](https://github.com/larainema/ai-gpu-lens/actions/workflows/release.yml/badge.svg)](https://github.com/larainema/ai-gpu-lens/actions/workflows/release.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/larainema/ai-gpu-lens)](https://github.com/larainema/ai-gpu-lens/releases)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
-[![GHCR](https://img.shields.io/badge/ghcr.io-v0.4.0-blue)](https://github.com/larainema/ai-gpu-lens/pkgs/container/ai-gpu-lens)
+[![GHCR](https://img.shields.io/badge/ghcr.io-v0.5.0-blue)](https://github.com/larainema/ai-gpu-lens/pkgs/container/ai-gpu-lens)
 
 `ai-gpu-lens` is a small CLI for finding waste in Kubernetes GPU fleets.
 It reads DCGM exporter metrics from Prometheus and produces an HTML/JSON report
@@ -28,6 +28,7 @@ The first target is a practical consulting workflow:
 - [Quickstart / 快速开始](docs/quickstart.md)
 - [Grafana datasource proxy](docs/grafana-datasource-proxy.md)
 - [Grafana dashboard JSON](docs/grafana-dashboard.md)
+- [Helm chart / 定期审计 CronJob](docs/helm-chart.md)
 - [Report guide / 报告解读](docs/report-guide.md)
 - [GPU audit playbook / GPU 审计交付流程](docs/audit-playbook.md)
 
@@ -150,6 +151,22 @@ If you already know the Prometheus datasource UID:
 See [Grafana dashboard JSON](docs/grafana-dashboard.md) for import steps and
 query overrides.
 
+## Run as a Kubernetes CronJob
+
+The Helm chart installs a read-only CronJob that runs `ai-gpu-lens bundle` on a
+schedule and writes report files to a PVC. It does not need Kubernetes API write
+permissions.
+
+```bash
+helm upgrade --install gpu-audit charts/ai-gpu-lens \
+  --namespace gpu-audit \
+  --create-namespace \
+  --set config.prometheusUrl=http://prometheus.monitoring.svc:9090
+```
+
+For Grafana datasource proxy credentials, use a Secret and a values file. See
+[Helm chart](docs/helm-chart.md).
+
 ## Audit a Prometheus endpoint
 
 ```bash
@@ -255,7 +272,7 @@ docker run --rm \
 After a release is published, use the GHCR image directly:
 
 ```bash
-docker run --rm ghcr.io/larainema/ai-gpu-lens:v0.4.0 --help
+docker run --rm ghcr.io/larainema/ai-gpu-lens:v0.5.0 --help
 ```
 
 For config-driven audits:
@@ -264,7 +281,7 @@ For config-driven audits:
 docker run --rm \
   -v "$PWD/local:/configs:ro" \
   -v "$PWD/reports:/reports" \
-  ghcr.io/larainema/ai-gpu-lens:v0.4.0 audit \
+  ghcr.io/larainema/ai-gpu-lens:v0.5.0 audit \
   --config /configs/grafana.yaml
 ```
 
@@ -373,6 +390,7 @@ make test
 make sample
 make compare
 make dashboard
+make chart
 make docker-build
 ```
 
@@ -384,12 +402,13 @@ package, and smoke-tests the Docker image.
 Create a version tag to publish a GitHub Release and GHCR image:
 
 ```bash
-git tag -a v0.4.0 -m "v0.4.0"
-git push origin v0.4.0
+git tag -a v0.5.0 -m "v0.5.0"
+git push origin v0.5.0
 ```
 
 The release workflow uploads the Python wheel/source distribution to the GitHub
-Release and pushes `ghcr.io/larainema/ai-gpu-lens:v0.4.0`.
+Release, uploads the packaged Helm chart, and pushes
+`ghcr.io/larainema/ai-gpu-lens:v0.5.0`.
 
 ## License
 
@@ -399,4 +418,4 @@ This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE).
 
 - More precise GPU allocation accounting from kube-state-metrics
 - Prometheus recording-rule recommendations
-- Helm chart for an in-cluster scheduled audit job
+- Object storage export for scheduled audit bundles

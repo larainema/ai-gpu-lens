@@ -1,0 +1,25 @@
+config:
+  prometheusUrl: https://grafana.example.com/api/datasources/proxy/uid/prometheus
+  hours: 168
+  step: 5m
+  language: zh
+  pricePerGpuHour: 2.50
+  gpuPrices:
+    H100: 4.25
+    A100: 3.20
+    L40S: 1.35
+  bundleName: weekly-gpu-audit
+  bundleOutputDir: /reports/latest
+  bundleArchive: /reports/latest.zip
+
+auth:
+  bearerToken:
+    existingSecret: grafana-viewer-token
+    existingSecretKey: token
+
+persistence:
+  enabled: true
+  size: 5Gi
+
+cron:
+  schedule: "0 2 * * 1"

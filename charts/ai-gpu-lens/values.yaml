@@ -1,0 +1,94 @@
+image:
+  repository: ghcr.io/larainema/ai-gpu-lens
+  tag: "v0.5.0"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+cron:
+  schedule: "0 2 * * *"
+  suspend: false
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  backoffLimit: 1
+  restartPolicy: Never
+
+config:
+  prometheusUrl: "http://prometheus.example.com:9090"
+  hours: 24
+  step: 5m
+  language: en
+  timeout: 20
+  pricePerGpuHour: 2.50
+  gpuPrices: {}
+  idleThreshold: 5
+  activeThreshold: 10
+  bundleName: gpu-audit
+  bundleOutputDir: /reports/latest
+  bundleArchive: /reports/latest.zip
+  bundleSkipDoctor: false
+  bundleNoArchive: false
+  skipKubeGpuRequests: false
+  skipMemoryTotalFallback: false
+  gpuUtilQuery: ""
+  memoryUsedQuery: ""
+  memoryTotalQuery: ""
+  memoryTotalFallbackQuery: ""
+  kubeGpuRequestQuery: ""
+
+auth:
+  basicAuth:
+    username: ""
+    passwordEnvName: AI_GPU_LENS_BASIC_AUTH_PASSWORD
+    existingSecret: ""
+    existingSecretKey: basic-auth-password
+    password: ""
+  bearerToken:
+    envName: AI_GPU_LENS_BEARER_TOKEN
+    existingSecret: ""
+    existingSecretKey: bearer-token
+    token: ""
+
+persistence:
+  enabled: true
+  existingClaim: ""
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 1Gi
+  annotations: {}
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+
+resources: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+extraEnv: []
+extraVolumes: []
+extraVolumeMounts: []
+extraArgs: []

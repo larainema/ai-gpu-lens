@@ -1,0 +1,14 @@
+ai-gpu-lens has been installed as a read-only CronJob.
+
+CronJob:
+  {{ include "ai-gpu-lens.fullname" . }}
+
+Reports are written inside the pod at:
+  {{ .Values.config.bundleOutputDir }}
+
+If persistence is enabled, retrieve the files from the reports PVC:
+  {{- if .Values.persistence.enabled }}
+  {{ default (printf "%s-reports" (include "ai-gpu-lens.fullname" .)) .Values.persistence.existingClaim }}
+  {{- else }}
+  persistence is disabled; reports live only for the job pod lifetime.
+  {{- end }}

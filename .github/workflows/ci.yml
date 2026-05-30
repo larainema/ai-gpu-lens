@@ -135,3 +135,32 @@ jobs:
             --markdown-output /out/sample-comparison.md
           docker run --rm -v "$tmpdir:/out" ai-gpu-lens:ci dashboard \
             --output /out/ai-gpu-lens-dashboard.json
+
+  chart:
+    name: Helm chart
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.18.3
+
+      - name: Lint chart
+        run: helm lint charts/ai-gpu-lens
+
+      - name: Render chart
+        run: |
+          helm template gpu-audit charts/ai-gpu-lens
+          helm template gpu-audit charts/ai-gpu-lens \
+            --set config.prometheusUrl=https://grafana.example.com/api/datasources/proxy/uid/prometheus \
+            --set auth.basicAuth.username=viewer \
+            --set auth.basicAuth.existingSecret=grafana-viewer-basic-auth \
+            --set persistence.enabled=false
+
+      - name: Package chart
+        run: |
+          mkdir -p /tmp/charts
+          helm package charts/ai-gpu-lens --destination /tmp/charts

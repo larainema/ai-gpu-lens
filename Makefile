@@ -1,4 +1,4 @@
-.PHONY: test sample bundle compare dashboard docker-build docker-sample
+.PHONY: test sample bundle compare dashboard chart docker-build docker-sample
 
 test:
 	python3 -m unittest discover -s tests
@@ -33,6 +33,10 @@ compare: sample bundle
 dashboard:
 	./bin/ai-gpu-lens dashboard \
 		--output reports/ai-gpu-lens-dashboard.json
+
+chart:
+	helm lint charts/ai-gpu-lens
+	helm template gpu-audit charts/ai-gpu-lens >/dev/null
 
 docker-build:
 	docker build -t ai-gpu-lens:local .
