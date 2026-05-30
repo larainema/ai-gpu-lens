@@ -11,6 +11,13 @@ bundle_name: sample-delivery
 bundle_output_dir: reports/sample-delivery
 bundle_archive: reports/sample-delivery.zip
 
+# Set public_bundle: true to also generate a redacted public bundle.
+# public_bundle: true
+# public_bundle_output_dir: reports/sample-delivery-public
+# public_bundle_archive: reports/sample-delivery-public.zip
+# public_case_study_title: Anonymized GPU Audit Case Study
+# public_cluster_name: sample-cluster
+
 price_per_gpu_hour: 2.50
 gpu_prices:
   default: 2.50

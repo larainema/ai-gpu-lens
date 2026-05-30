@@ -1,4 +1,4 @@
-.PHONY: test sample bundle compare dashboard redact chart docker-build docker-sample
+.PHONY: test sample bundle public-bundle compare dashboard redact chart docker-build docker-sample
 
 test:
 	python3 -m unittest discover -s tests
@@ -18,6 +18,20 @@ bundle:
 		--name sample-delivery \
 		--output-dir reports/sample-delivery \
 		--archive reports/sample-delivery.zip \
+		--price-per-gpu-hour 2.50 \
+		--language zh
+
+public-bundle:
+	./bin/ai-gpu-lens bundle \
+		--from-file examples/sample-prometheus.json \
+		--name sample-delivery \
+		--output-dir reports/sample-delivery \
+		--archive reports/sample-delivery.zip \
+		--public \
+		--public-output-dir reports/sample-delivery-public \
+		--public-archive reports/sample-delivery-public.zip \
+		--public-title "Anonymized GPU Audit Case Study" \
+		--public-cluster-name sample-cluster \
 		--price-per-gpu-hour 2.50 \
 		--language zh
 

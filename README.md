@@ -4,7 +4,7 @@
 [![Release](https://github.com/larainema/ai-gpu-lens/actions/workflows/release.yml/badge.svg)](https://github.com/larainema/ai-gpu-lens/actions/workflows/release.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/larainema/ai-gpu-lens)](https://github.com/larainema/ai-gpu-lens/releases)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
-[![GHCR](https://img.shields.io/badge/ghcr.io-v0.6.0-blue)](https://github.com/larainema/ai-gpu-lens/pkgs/container/ai-gpu-lens)
+[![GHCR](https://img.shields.io/badge/ghcr.io-v0.7.0-blue)](https://github.com/larainema/ai-gpu-lens/pkgs/container/ai-gpu-lens)
 
 `ai-gpu-lens` is a small CLI for finding waste in Kubernetes GPU fleets.
 It reads DCGM exporter metrics from Prometheus and produces an HTML/JSON report
@@ -108,6 +108,25 @@ Grafana endpoint, it also includes `doctor` output unless disabled.
   --price-per-gpu-hour 2.50 \
   --language zh
 ```
+
+Add `--public` when you also want a separate redacted public bundle in the same
+run:
+
+```bash
+./bin/ai-gpu-lens bundle \
+  --config local/customer-grafana.yaml \
+  --name customer-gpu-audit \
+  --output-dir reports/customer-gpu-audit \
+  --archive reports/customer-gpu-audit.zip \
+  --public \
+  --public-output-dir reports/customer-gpu-audit-public \
+  --public-archive reports/customer-gpu-audit-public.zip \
+  --public-title "Anonymized GPU Audit Case Study" \
+  --public-cluster-name demo-cluster
+```
+
+The public bundle contains redacted `audit.html`, `audit.json`, `audit.md`,
+`case-study.md`, `manifest.json`, `README.md`, and a public zip archive.
 
 You can also use a config file:
 
@@ -293,7 +312,7 @@ docker run --rm \
 After a release is published, use the GHCR image directly:
 
 ```bash
-docker run --rm ghcr.io/larainema/ai-gpu-lens:v0.6.0 --help
+docker run --rm ghcr.io/larainema/ai-gpu-lens:v0.7.0 --help
 ```
 
 For config-driven audits:
@@ -302,7 +321,7 @@ For config-driven audits:
 docker run --rm \
   -v "$PWD/local:/configs:ro" \
   -v "$PWD/reports:/reports" \
-  ghcr.io/larainema/ai-gpu-lens:v0.6.0 audit \
+  ghcr.io/larainema/ai-gpu-lens:v0.7.0 audit \
   --config /configs/grafana.yaml
 ```
 
@@ -424,13 +443,13 @@ package, and smoke-tests the Docker image.
 Create a version tag to publish a GitHub Release and GHCR image:
 
 ```bash
-git tag -a v0.6.0 -m "v0.6.0"
-git push origin v0.6.0
+git tag -a v0.7.0 -m "v0.7.0"
+git push origin v0.7.0
 ```
 
 The release workflow uploads the Python wheel/source distribution to the GitHub
 Release, uploads the packaged Helm chart, and pushes
-`ghcr.io/larainema/ai-gpu-lens:v0.6.0`.
+`ghcr.io/larainema/ai-gpu-lens:v0.7.0`.
 
 ## License
 

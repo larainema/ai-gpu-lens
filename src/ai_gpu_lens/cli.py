@@ -53,6 +53,7 @@ from .redact import (
     load_json_report,
     redact_report,
     render_case_study,
+    report_to_mapping,
     write_json,
 )
 from .report import write_html_report, write_json_report, write_markdown_report
@@ -246,6 +247,38 @@ def build_parser() -> argparse.ArgumentParser:
         "--skip-doctor",
         action="store_true",
         help="Skip doctor output even when using a live Prometheus/Grafana endpoint.",
+    )
+    bundle.add_argument(
+        "--public",
+        action="store_true",
+        help="Also generate a redacted public delivery bundle.",
+    )
+    bundle.add_argument(
+        "--public-output-dir",
+        type=Path,
+        default=None,
+        help="Directory for public redacted bundle files. Default: <output-dir>-public.",
+    )
+    bundle.add_argument(
+        "--public-archive",
+        type=Path,
+        default=None,
+        help="Zip archive path for the public redacted bundle.",
+    )
+    bundle.add_argument(
+        "--no-public-archive",
+        action="store_true",
+        help="Write the public redacted bundle without creating a zip archive.",
+    )
+    bundle.add_argument(
+        "--public-title",
+        default=None,
+        help="Case study title for the public redacted bundle.",
+    )
+    bundle.add_argument(
+        "--public-cluster-name",
+        default=None,
+        help="Anonymized cluster name used in the public case study.",
     )
     bundle.add_argument(
         "--hours",
@@ -705,6 +738,61 @@ def run_bundle(args: argparse.Namespace) -> int:
     if not no_archive:
         archive_bundle(output_dir, archive_path)
         print(f"wrote bundle archive: {archive_path}")
+
+    public_enabled = bool(
+        args.public
+        or get_config_value(config, "public_bundle", False)
+        or get_config_value(config, "public_bundle_enabled", False)
+    )
+    if public_enabled:
+        public_output_dir = (
+            args.public_output_dir
+            or config_path(get_config_value(config, "public_bundle_output_dir"))
+            or output_dir.parent / f"{output_dir.name}-public"
+        )
+        public_archive_path = (
+            args.public_archive
+            or config_path(get_config_value(config, "public_bundle_archive"))
+            or public_output_dir.parent / f"{public_output_dir.name}.zip"
+        )
+        public_title = str(
+            args.public_title
+            or get_config_value(
+                config,
+                "public_case_study_title",
+                "Anonymized GPU Audit Case Study",
+            )
+        )
+        public_cluster_name = str(
+            args.public_cluster_name
+            or get_config_value(config, "public_cluster_name", "anonymized-cluster")
+        )
+        public_no_archive = bool(
+            args.no_public_archive
+            or get_config_value(config, "public_bundle_no_archive", False)
+        )
+        if public_output_dir.resolve() == output_dir.resolve():
+            print("error: public output directory must differ from private output directory")
+            return 2
+        if (
+            not public_no_archive
+            and not no_archive
+            and public_archive_path.resolve() == archive_path.resolve()
+        ):
+            print("error: public archive must differ from private archive")
+            return 2
+        public_manifest = write_public_bundle(
+            f"{bundle_name}-public",
+            public_output_dir,
+            public_archive_path,
+            report,
+            title=public_title,
+            cluster_name=public_cluster_name,
+            no_archive=public_no_archive,
+        )
+        print(f"wrote public redacted bundle directory: {public_output_dir}")
+        if public_manifest["archive"]:
+            print(f"wrote public redacted bundle archive: {public_archive_path}")
     print(
         t(
             report.language,
@@ -765,6 +853,77 @@ def clear_bundle_outputs(output_dir: Path) -> None:
             path.unlink()
 
 
+def write_public_bundle(
+    bundle_name: str,
+    output_dir: Path,
+    archive_path: Path,
+    report: AuditReport,
+    *,
+    title: str,
+    cluster_name: str,
+    no_archive: bool,
+) -> dict[str, object]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    clear_public_bundle_outputs(output_dir)
+
+    redacted, _redactions = redact_report(report_to_mapping(report))
+    redacted["language"] = report.language
+    redacted_report = audit_report_from_mapping(redacted)
+
+    write_json(redacted, output_dir / "audit.json")
+    write_html_report(redacted_report, output_dir / "audit.html")
+    write_markdown_report(redacted_report, output_dir / "audit.md")
+    (output_dir / "case-study.md").write_text(
+        render_case_study(
+            redacted,
+            title=title,
+            cluster_name=cluster_name,
+            language=report.language,
+        ),
+        encoding="utf-8",
+    )
+
+    manifest = build_bundle_manifest(
+        bundle_name,
+        output_dir,
+        redacted_report,
+        source="redacted-audit",
+        doctor_included=False,
+    )
+    manifest.update(
+        {
+            "redacted": True,
+            "case_study": "case-study.md",
+            "archive": None if no_archive else str(archive_path),
+        }
+    )
+    (output_dir / "manifest.json").write_text(
+        json.dumps(manifest, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    (output_dir / "README.md").write_text(
+        render_public_bundle_readme(bundle_name, redacted_report, manifest),
+        encoding="utf-8",
+    )
+    if not no_archive:
+        archive_bundle(output_dir, archive_path)
+    return manifest
+
+
+def clear_public_bundle_outputs(output_dir: Path) -> None:
+    for name in (
+        "README.md",
+        "audit.html",
+        "audit.json",
+        "audit.md",
+        "case-study.md",
+        "manifest.json",
+    ):
+        path = output_dir / name
+        if path.exists():
+            path.unlink()
+
+
 def render_bundle_readme(
     bundle_name: str,
     report: AuditReport,
@@ -810,6 +969,48 @@ Generated by ai-gpu-lens {__version__}.
 ## Telemetry Gaps
 
 {telemetry_gaps}
+"""
+
+
+def render_public_bundle_readme(
+    bundle_name: str,
+    report: AuditReport,
+    manifest: dict[str, object],
+) -> str:
+    files = "\n".join(f"- `{item}`" for item in manifest["files"])
+    actions = "\n".join(f"- {item.action}" for item in report.action_items[:5])
+    if not actions:
+        actions = "- Validate a longer audit window before changing capacity."
+    return f"""# {bundle_name}
+
+Public redacted delivery bundle generated by ai-gpu-lens {__version__}.
+
+This bundle keeps utilization, cost, and capacity signals while replacing
+environment identifiers with deterministic aliases scoped to this report.
+
+## Summary
+
+- GPUs: {report.total_gpus}
+- Window: {report.window_hours:.2f}h, step {report.step}
+- Fleet average utilization: {report.fleet_avg_utilization:.1f}%
+- Idle GPU hours: {report.total_idle_gpu_hours:,.2f}
+- Estimated idle cost: ${report.estimated_idle_cost:,.2f}
+- Requested GPU hours: {report.total_requested_gpu_hours:,.2f}
+- Estimated requested cost: ${report.estimated_request_cost:,.2f}
+
+## Files
+
+{files}
+
+## Suggested Public Narrative
+
+{actions}
+
+## Sharing Checklist
+
+- Review `audit.html`, `audit.md`, and `case-study.md` before publishing.
+- Share only this public bundle, not the original private bundle.
+- Keep original reports under `reports/` or another private location.
 """
 
 

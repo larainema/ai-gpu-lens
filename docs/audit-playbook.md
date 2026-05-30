@@ -122,6 +122,21 @@ For live Prometheus or Grafana endpoints, the bundle includes `doctor.json` and
 `doctor.txt`. Use `--skip-doctor` if you do not want preflight details in the
 delivery package.
 
+For a private delivery bundle plus a public redacted bundle in the same run:
+
+```bash
+ai-gpu-lens bundle \
+  --config local/customer-grafana.yaml \
+  --name customer-gpu-audit \
+  --output-dir reports/customer-gpu-audit \
+  --archive reports/customer-gpu-audit.zip \
+  --public \
+  --public-output-dir reports/customer-gpu-audit-public \
+  --public-archive reports/customer-gpu-audit-public.zip \
+  --public-title "Anonymized GPU Audit Case Study" \
+  --public-cluster-name demo-cluster
+```
+
 If the customer wants continuous monitoring after the audit, include a Grafana
 dashboard JSON:
 
@@ -141,8 +156,8 @@ helm upgrade --install customer-gpu-audit charts/ai-gpu-lens \
   --values local/customer-helm-values.yaml
 ```
 
-For public sharing, generate redacted artifacts and review them before
-publishing:
+If you already have an audit JSON and only need public sharing, generate
+redacted artifacts and review them before publishing:
 
 ```bash
 ai-gpu-lens redact \

@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.7.0 - 2026-05-30
+
+- Add `ai-gpu-lens bundle --public` to generate private and public redacted delivery bundles in one run.
+- Include redacted audit HTML/JSON/Markdown, public case study, README, manifest, and zip archive in public bundles.
+- Support config-driven public bundle paths, case study title, cluster alias, and archive controls.
+- Add public bundle docs, example config comments, Makefile target, tests, and CI/package/Docker smoke coverage.
+
 ## v0.6.0 - 2026-05-30
 
 - Add `ai-gpu-lens redact` for anonymizing audit and comparison JSON reports.

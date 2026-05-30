@@ -32,13 +32,13 @@ Open `reports/sample.html` in a browser. The report includes:
 ## 2. Use The Released Container
 
 ```bash
-docker run --rm ghcr.io/larainema/ai-gpu-lens:v0.6.0 --help
+docker run --rm ghcr.io/larainema/ai-gpu-lens:v0.7.0 --help
 ```
 
 Run the bundled sample inside the image:
 
 ```bash
-docker run --rm ghcr.io/larainema/ai-gpu-lens:v0.6.0 audit \
+docker run --rm ghcr.io/larainema/ai-gpu-lens:v0.7.0 audit \
   --from-file examples/sample-prometheus.json \
   --output /tmp/sample.html \
   --json-output /tmp/sample.json \
@@ -53,7 +53,7 @@ mkdir -p local reports
 docker run --rm \
   -v "$PWD/local:/configs:ro" \
   -v "$PWD/reports:/reports" \
-  ghcr.io/larainema/ai-gpu-lens:v0.6.0 audit \
+  ghcr.io/larainema/ai-gpu-lens:v0.7.0 audit \
   --config /configs/grafana.yaml
 ```
 
@@ -125,6 +125,24 @@ The bundle contains:
 - `manifest.json`
 - `README.md`
 - a zip archive, unless `--no-archive` is set
+
+For a one-command private plus public delivery package, add `--public`:
+
+```bash
+./bin/ai-gpu-lens bundle \
+  --config local/customer-grafana.yaml \
+  --name customer-gpu-audit \
+  --output-dir reports/customer-gpu-audit \
+  --archive reports/customer-gpu-audit.zip \
+  --public \
+  --public-output-dir reports/customer-gpu-audit-public \
+  --public-archive reports/customer-gpu-audit-public.zip \
+  --public-title "Anonymized GPU Audit Case Study" \
+  --public-cluster-name demo-cluster
+```
+
+The public bundle contains redacted `audit.html`, `audit.json`, `audit.md`,
+`case-study.md`, `manifest.json`, `README.md`, and a public zip archive.
 
 ## 7. Compare Two Audits
 
@@ -205,7 +223,7 @@ Review the redacted output before sharing. See [Redaction](redaction.md).
 - 先用 sample 跑通：`./bin/ai-gpu-lens audit --from-file examples/sample-prometheus.json ...`
 - 真实环境先跑 `doctor`，确认 DCGM、kube-state-metrics、workload labels 是否齐全。
 - 初测用 24 小时窗口，正式审计用 7 天窗口。
-- 要交付给别人时用 `bundle` 生成目录和 zip。
+- 要交付给别人时用 `bundle` 生成目录和 zip；需要公开材料时加 `--public`。
 - 整改后用 `compare` 对比基线和复测 JSON，确认节省与回归。
 - 需要持续可视化时用 `dashboard` 生成 Grafana JSON 后导入。
 - 需要定期审计时用 Helm chart 部署只读 CronJob。

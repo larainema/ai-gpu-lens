@@ -45,6 +45,9 @@ jobs:
             --name sample-delivery \
             --output-dir reports/sample-delivery \
             --archive reports/sample-delivery.zip \
+            --public \
+            --public-output-dir reports/sample-delivery-public \
+            --public-archive reports/sample-delivery-public.zip \
             --price-per-gpu-hour 2.50 \
             --language zh
 
@@ -105,7 +108,10 @@ jobs:
             --from-file examples/sample-prometheus.json \
             --name sample-delivery \
             --output-dir /tmp/sample-delivery \
-            --archive /tmp/sample-delivery.zip
+            --archive /tmp/sample-delivery.zip \
+            --public \
+            --public-output-dir /tmp/sample-delivery-public \
+            --public-archive /tmp/sample-delivery-public.zip
           ai-gpu-lens compare \
             --before /tmp/sample.json \
             --after /tmp/sample-delivery/audit.json \
@@ -144,7 +150,10 @@ jobs:
             --from-file examples/sample-prometheus.json \
             --name sample-delivery \
             --output-dir /out/sample-delivery \
-            --archive /out/sample-delivery.zip
+            --archive /out/sample-delivery.zip \
+            --public \
+            --public-output-dir /out/sample-delivery-public \
+            --public-archive /out/sample-delivery-public.zip
           docker run --rm -v "$tmpdir:/out" ai-gpu-lens:ci compare \
             --before /out/sample.json \
             --after /out/sample-delivery/audit.json \

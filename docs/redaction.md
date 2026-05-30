@@ -55,11 +55,28 @@ For Chinese output:
 
 ## Public Demo Workflow
 
-1. Run `doctor` and `audit` against the real environment.
-2. Run `redact` on the audit JSON.
-3. Review the redacted HTML/Markdown/case-study output manually.
-4. Share only the redacted artifacts.
-5. Keep original reports under `reports/` or another private location.
+For a fresh customer audit, use `bundle --public` to create private and public
+deliverables in one run:
+
+```bash
+./bin/ai-gpu-lens bundle \
+  --config local/customer-grafana.yaml \
+  --name customer-gpu-audit \
+  --output-dir reports/customer-gpu-audit \
+  --archive reports/customer-gpu-audit.zip \
+  --public \
+  --public-output-dir reports/customer-gpu-audit-public \
+  --public-archive reports/customer-gpu-audit-public.zip \
+  --public-title "Anonymized GPU Audit Case Study" \
+  --public-cluster-name demo-cluster
+```
+
+If you already have an audit JSON, use `redact` directly:
+
+1. Run `redact` on the audit JSON.
+2. Review the redacted HTML/Markdown/case-study output manually.
+3. Share only the redacted artifacts.
+4. Keep original reports under `reports/` or another private location.
 
 `reports/` and `local/` are ignored by Git. Do not commit original customer or
 environment reports to the public repository.
@@ -75,6 +92,7 @@ environment reports to the public repository.
 ## 中文速记
 
 - `redact` 保留指标和成本，替换环境名称。
+- 新审计建议用 `bundle --public` 一次生成私有包和公开脱敏包。
 - 可以输出 redacted JSON、HTML、Markdown 和 case study。
 - 真实报告仍然只放在 `reports/`，不要提交到 public repo。
 - 发布前人工检查一遍脱敏结果。
